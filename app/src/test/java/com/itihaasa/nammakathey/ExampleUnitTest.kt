@@ -1,4 +1,4 @@
-package com.example.nammakathey
+package com.itihaasa.nammakathey
 
 import org.junit.Test
 

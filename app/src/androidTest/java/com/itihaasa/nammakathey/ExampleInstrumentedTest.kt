@@ -1,4 +1,4 @@
-package com.example.nammakathey
+package com.itihaasa.nammakathey
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4

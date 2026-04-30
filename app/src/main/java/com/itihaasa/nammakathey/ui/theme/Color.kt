@@ -1,4 +1,4 @@
-package com.example.nammakathey.ui.theme
+package com.itihaasa.nammakathey.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

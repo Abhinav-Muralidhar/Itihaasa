@@ -19,3 +19,30 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# Hilt / Dagger
+-keep class dagger.hilt.** { *; }
+-keep class javax.inject.** { *; }
+-keep class * extends dagger.hilt.android.internal.lifecycle.HiltViewModelFactory
+
+# Firebase
+-keep class com.google.firebase.** { *; }
+-dontwarn com.google.firebase.**
+
+# Retrofit / Gson
+-keep class retrofit2.** { *; }
+-keep class okhttp3.** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*
+
+# Gson model classes (important)
+-keep class com.itihaasa.nammakathey.** { *; }
+
+# Coroutines
+-dontwarn kotlinx.coroutines.**
+
+# Google Maps
+-keep class com.google.android.gms.maps.** { *; }
+-dontwarn com.google.android.gms.**
+
+# Keep BuildConfig
+-keep class **.BuildConfig { *; }
