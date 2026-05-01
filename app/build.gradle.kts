@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
 
@@ -17,6 +19,22 @@ plugins {
     id("com.google.gms.google-services")
     id("com.google.firebase.crashlytics")
 }
+
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { stream ->
+            load(stream)
+        }
+    }
+}
+
+fun secretProperty(name: String): String {
+    return project.findProperty(name)?.toString()
+        ?: localProperties.getProperty(name)
+        ?: ""
+}
+
     android {
         namespace = "com.itihaasa.nammakathey"
         compileSdk = 36
@@ -31,8 +49,8 @@ plugins {
 
             testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-            val mapsKey = project.findProperty("MAPS_API_KEY")?.toString() ?: ""
-            val geminiKey = project.findProperty("GEMINI_API_KEY")?.toString() ?: ""
+            val mapsKey = secretProperty("MAPS_API_KEY")
+            val geminiKey = secretProperty("GEMINI_API_KEY")
 
             manifestPlaceholders["MAPS_API_KEY"] = mapsKey
             buildConfigField("String", "MAPS_API_KEY", "\"$mapsKey\"")
@@ -82,10 +100,13 @@ plugins {
         implementation(libs.androidx.compose.ui.graphics)
         implementation(libs.androidx.compose.ui.tooling.preview)
         implementation(libs.androidx.compose.material3)
+        implementation("androidx.compose.material:material-icons-extended")
         implementation("androidx.navigation:navigation-compose:2.7.7")
+        implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.0")
 
         // Google Maps
         implementation("com.google.maps.android:maps-compose:4.3.3")
+        implementation("com.google.maps.android:maps-compose-utils:4.3.3")
         implementation("com.google.android.gms:play-services-maps:18.2.0")
 
         // Firebase
@@ -124,4 +145,9 @@ plugins {
 
         // Debug
         debugImplementation(libs.androidx.compose.ui.tooling)
+        testImplementation(libs.junit)
+        androidTestImplementation(libs.androidx.junit)
+        androidTestImplementation(libs.androidx.espresso.core)
+        androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+        debugImplementation(libs.androidx.compose.ui.test.manifest)
     }
