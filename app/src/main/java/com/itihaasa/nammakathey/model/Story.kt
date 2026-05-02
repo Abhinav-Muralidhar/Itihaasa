@@ -8,6 +8,7 @@ data class Story(
     val storyText: String = "",
     val significance: String = "",
     val quiz: List<QuizQuestion> = emptyList(),
+    val wikipediaImageQuery: String? = null,
     val imageUrl: String? = null,
     val generatedAt: Long = System.currentTimeMillis()
 )

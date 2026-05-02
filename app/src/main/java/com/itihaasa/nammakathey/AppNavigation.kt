@@ -26,7 +26,9 @@ fun NammaKatheyRoot() {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Map.route) {
-                MapScreen()
+                MapScreen(
+                    onProfileClick = { navController.navigate(Screen.Profile.route) }
+                )
             }
             composable(Screen.Profile.route) {
                 ProfileScreen()

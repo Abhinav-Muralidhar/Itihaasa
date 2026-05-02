@@ -84,9 +84,19 @@ object NetworkModule {
 
     private fun wikipediaHttpClient(): OkHttpClient {
         return OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                    .newBuilder()
+                    .header("User-Agent", WIKIMEDIA_USER_AGENT)
+                    .build()
+                chain.proceed(request)
+            }
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .callTimeout(30, TimeUnit.SECONDS)
             .build()
     }
+
+    private const val WIKIMEDIA_USER_AGENT =
+        "NammaKathey/1.0 (heritage-story-app; contact: developer@nammakathey.local)"
 }

@@ -15,12 +15,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    match /stories/{storyId} {
+    match /places/{placeId} {
       allow read: if true;
-      allow create: if signedIn()
-        && request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if signedIn()
-        && resource.data.authorId == request.auth.uid;
+      allow create, update: if signedIn()
+        && request.resource.data.cacheType == "story";
+      allow delete: if false;
     }
 
     match /users/{userId} {

@@ -1,7 +1,10 @@
 package com.itihaasa.nammakathey.data.repository
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.itihaasa.nammakathey.BuildConfig
@@ -32,7 +35,7 @@ class StoryRepository @Inject constructor(
 ) {
     suspend fun getStory(place: Place, lang: String = "en"): Story = withContext(Dispatchers.IO) {
         val docKey = storyDocKey(place, lang)
-        val storyDocument = firestore.collection(STORIES_COLLECTION).document(docKey)
+        val storyDocument = firestore.collection(PLACES_COLLECTION).document(docKey)
         val cachedStory = runCatching {
             storyDocument
                 .get()
@@ -41,37 +44,196 @@ class StoryRepository @Inject constructor(
         }.getOrNull()
 
         if (cachedStory != null) {
+            if (lang == KANNADA_LANG && !cachedStory.storyText.isMostlyKannada()) {
+                val regeneratedStory = generateStory(place, lang)
+                saveStoryDocument(storyDocument, regeneratedStory)
+                return@withContext regeneratedStory
+            }
+            if (cachedStory.imageUrl.isNullOrBlank()) {
+                val imageUrl = fetchWikipediaImageUrl(cachedStory.wikipediaImageQuery ?: place.name)
+                if (!imageUrl.isNullOrBlank()) {
+                    runCatching {
+                        ensureStoryCacheSession()
+                        storyDocument
+                            .set(
+                                mapOf(
+                                    "imageUrl" to imageUrl,
+                                    "cacheType" to STORY_CACHE_TYPE
+                                ),
+                                SetOptions.merge()
+                            )
+                            .await()
+                    }
+                    return@withContext cachedStory.copy(imageUrl = imageUrl)
+                }
+            }
             return@withContext cachedStory
         }
 
-        val imageUrl = fetchWikipediaImageUrl(place.name)
-        val generatedStory = generateStory(place, lang, imageUrl)
+        val generatedStory = generateStory(place, lang)
 
+        saveStoryDocument(storyDocument, generatedStory)
+
+        generatedStory
+    }
+
+    private suspend fun saveStoryDocument(
+        storyDocument: com.google.firebase.firestore.DocumentReference,
+        story: Story
+    ) {
         runCatching {
+            ensureStoryCacheSession()
             val storyPayload = gson.fromJson(
-                gson.toJson(generatedStory),
+                gson.toJson(story),
                 MutableMap::class.java
             ).toMutableMap()
-            storyPayload["authorId"] = ensureSignedInUserId()
+            storyPayload["cacheType"] = STORY_CACHE_TYPE
 
             storyDocument
                 .set(storyPayload)
                 .await()
         }
-
-        generatedStory
     }
 
     private suspend fun fetchWikipediaImageUrl(placeName: String): String? {
-        return runCatching {
-            wikipediaApiService.getPageSummary(placeName).thumbnail?.source
-        }.getOrNull()
+        return try {
+            fetchWikipediaThumbnail(placeName)
+                ?: placeName
+                    .trim()
+                    .split(Regex("\\s+"))
+                    .take(2)
+                    .joinToString(" ")
+                    .takeIf { it.isNotBlank() && it != placeName.trim() }
+                    ?.let { fallbackName -> fetchWikipediaThumbnail(fallbackName) }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private suspend fun fetchWikipediaThumbnail(placeName: String): String? {
+        val encodedName = placeName.trim().replace(" ", "_")
+        if (encodedName.isBlank()) return null
+
+        return wikipediaApiService
+            .getPageSummary(encodedName)
+            .thumbnail
+            ?.source
+            ?.let { source ->
+                if (source.startsWith("http://")) {
+                    source.replaceFirst("http://", "https://")
+                } else {
+                    source
+                }
+            }
+    }
+
+    fun isGoogleSignedIn(): Boolean {
+        val user = firebaseAuth.currentUser
+        return user != null && !user.isAnonymous
+    }
+
+    suspend fun signInWithGoogle(idToken: String) = withContext(Dispatchers.IO) {
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
+        val user = firebaseAuth.signInWithCredential(credential).await().user
+            ?: error("Google sign-in failed.")
+
+        val userDocument = firestore.collection(USERS_COLLECTION).document(user.uid)
+        val snapshot = userDocument.get().await()
+        if (!snapshot.exists()) {
+            userDocument.set(
+                mapOf(
+                    "uid" to user.uid,
+                    "displayName" to user.displayName.orEmpty(),
+                    "photoUrl" to (user.photoUrl?.toString().orEmpty()),
+                    "preferredLang" to "en",
+                    "badgesEarned" to emptyList<Map<String, Any>>(),
+                    "placesExplored" to emptyList<Map<String, Any>>(),
+                    "quizStreak" to 0,
+                    "joinedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+        } else {
+            userDocument.set(
+                mapOf(
+                    "uid" to user.uid,
+                    "displayName" to user.displayName.orEmpty(),
+                    "photoUrl" to (user.photoUrl?.toString().orEmpty())
+                ),
+                SetOptions.merge()
+            ).await()
+        }
+    }
+
+    suspend fun saveBadge(place: Place) = withContext(Dispatchers.IO) {
+        val user = firebaseAuth.currentUser
+        if (user == null || user.isAnonymous) return@withContext
+
+        val badge = mapOf(
+            "placeId" to place.id,
+            "placeName" to place.name,
+            "district" to place.district,
+            "earnedAt" to System.currentTimeMillis()
+        )
+        val exploredPlace = mapOf(
+            "placeId" to place.id,
+            "name" to place.name,
+            "timestamp" to System.currentTimeMillis(),
+            "badgeEarned" to true
+        )
+
+        firestore.collection(USERS_COLLECTION)
+            .document(user.uid)
+            .set(
+                mapOf(
+                    "badgesEarned" to FieldValue.arrayUnion(badge),
+                    "placesExplored" to FieldValue.arrayUnion(exploredPlace),
+                    "quizStreak" to FieldValue.increment(1)
+                ),
+                SetOptions.merge()
+            )
+            .await()
+    }
+
+    suspend fun askHeritageGuide(
+        place: Place,
+        cachedStoryText: String,
+        userQuestion: String
+    ): String {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        require(apiKey.isNotBlank()) { "Gemini API key is missing. Add GEMINI_API_KEY to local.properties." }
+
+        val prompt = """
+            You are a knowledgeable heritage guide at ${place.name}, Karnataka.
+            Answer in simple English. Max 100 words. Context: $cachedStoryText
+            User: $userQuestion
+        """.trimIndent()
+
+        val response = generateStoryWithRetry(
+            apiKey = apiKey,
+            request = GeminiGenerateContentRequest(
+                contents = listOf(
+                    GeminiContent(
+                        role = "user",
+                        parts = listOf(GeminiPart(prompt))
+                    )
+                )
+            )
+        )
+
+        return response.candidates
+            .firstOrNull()
+            ?.content
+            ?.parts
+            ?.firstOrNull()
+            ?.text
+            .orEmpty()
+            .trim()
+            .ifBlank { "I could not find a clear answer for that." }
     }
 
     private suspend fun generateStory(
         place: Place,
-        lang: String,
-        imageUrl: String?
+        lang: String
     ): Story {
         val apiKey = BuildConfig.GEMINI_API_KEY
         require(apiKey.isNotBlank()) { "Gemini API key is missing. Add GEMINI_API_KEY to local.properties." }
@@ -84,7 +246,7 @@ class StoryRepository @Inject constructor(
                         role = "user",
                         parts = listOf(
                             GeminiPart(
-                                "You are a historian specialising in Karnataka heritage. Generate heritage content for Place: ${place.name}, Type: ${place.type}, District: ${place.district}, Era hints: ${place.seedKeywords}, Language: $lang. Respond only with valid JSON and no markdown. Use this exact shape: { heroName, era, story, significance, quiz: [{q, options[4], answer}x3] }"
+                                storyPrompt(place = place, lang = lang)
                             )
                         )
                     )
@@ -106,6 +268,8 @@ class StoryRepository @Inject constructor(
             .trim()
 
         val parsedStory = gson.fromJson(json, GeneratedStoryResponse::class.java)
+        val wikipediaImageQuery = parsedStory.wikipediaImageQuery.ifBlank { place.name }
+        val imageUrl = fetchWikipediaImageUrl(wikipediaImageQuery)
 
         return Story(
             placeId = place.id,
@@ -121,6 +285,7 @@ class StoryRepository @Inject constructor(
                     answer = it.answer
                 )
             },
+            wikipediaImageQuery = wikipediaImageQuery,
             imageUrl = imageUrl,
             generatedAt = System.currentTimeMillis()
         )
@@ -155,9 +320,34 @@ class StoryRepository @Inject constructor(
         return "${place.stateId}_${place.id}_$lang"
     }
 
-    private suspend fun ensureSignedInUserId(): String {
-        firebaseAuth.currentUser?.let { return it.uid }
-        return firebaseAuth.signInAnonymously().await().user?.uid
+    private fun storyPrompt(place: Place, lang: String): String {
+        val languageInstruction = if (lang == KANNADA_LANG) {
+            "Write every human-readable value only in Kannada using Kannada script. Do not use English, Telugu, Tamil, Hindi, Roman script, or mixed-language words. Transliterate place names and proper nouns into Kannada script. Translate quiz questions, options, answers, heroName, era, story, and significance into natural Kannada."
+        } else {
+            "Write every human-readable value in simple English."
+        }
+
+        return "You are a historian specialising in Karnataka heritage. Generate heritage content for Place: ${place.name}, Type: ${place.type}, District: ${place.district}, Era hints: ${place.seedKeywords}, Language code: $lang. $languageInstruction Also choose the best exact English Wikipedia page title to search for an image of this place. Respond only with valid JSON and no markdown. Use this exact shape: { heroName, era, story, significance, quiz: [{q, options[4], answer}x3], wikipediaImageQuery: \"exact Wikipedia page title\" }"
+    }
+
+    private fun String.isMostlyKannada(): Boolean {
+        val letters = filter { it.isLetter() }
+        if (letters.isBlank()) return false
+
+        val kannadaLetters = letters.count { it in '\u0C80'..'\u0CFF' }
+        val disallowedScriptLetters = letters.count {
+            it in 'A'..'Z' ||
+                it in 'a'..'z' ||
+                it in '\u0C00'..'\u0C7F' ||
+                it in '\u0B80'..'\u0BFF'
+        }
+
+        return kannadaLetters >= letters.length * 0.7 && disallowedScriptLetters <= letters.length * 0.08
+    }
+
+    private suspend fun ensureStoryCacheSession() {
+        if (firebaseAuth.currentUser != null) return
+        firebaseAuth.signInAnonymously().await().user
             ?: error("Anonymous sign-in failed.")
     }
 
@@ -166,7 +356,8 @@ class StoryRepository @Inject constructor(
         val era: String = "",
         val story: String = "",
         val significance: String = "",
-        val quiz: List<GeneratedQuizQuestion> = emptyList()
+        val quiz: List<GeneratedQuizQuestion> = emptyList(),
+        val wikipediaImageQuery: String = ""
     )
 
     private data class GeneratedQuizQuestion(
@@ -177,7 +368,10 @@ class StoryRepository @Inject constructor(
     )
 
     private companion object {
-        const val STORIES_COLLECTION = "stories"
+        const val PLACES_COLLECTION = "places"
+        const val USERS_COLLECTION = "users"
+        const val STORY_CACHE_TYPE = "story"
+        const val KANNADA_LANG = "kn"
         const val GEMINI_MAX_ATTEMPTS = 3
         const val HTTP_UNAVAILABLE = 503
         val GEMINI_RETRY_DELAYS_MS = longArrayOf(1_000L, 2_000L)

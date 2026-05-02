@@ -110,19 +110,20 @@ fun secretProperty(name: String): String {
         implementation("com.google.android.gms:play-services-maps:18.2.0")
 
         // Firebase
-        implementation(platform("com.google.firebase:firebase-bom:32.7.4"))
-        implementation("com.google.firebase:firebase-auth-ktx")
-        implementation("com.google.firebase:firebase-firestore-ktx")
-        implementation("com.google.firebase:firebase-analytics-ktx")
-        implementation("com.google.firebase:firebase-crashlytics-ktx")
+        implementation(platform("com.google.firebase:firebase-bom:34.12.0"))
+        implementation("com.google.firebase:firebase-auth")
+        implementation("com.google.firebase:firebase-firestore")
+        implementation("com.google.firebase:firebase-analytics")
+        implementation("com.google.firebase:firebase-crashlytics")
 
         // Google Sign-In
         implementation("com.google.android.gms:play-services-auth:21.0.0")
 
         // Hilt
-        implementation("com.google.dagger:hilt-android:2.51")
-        kapt("com.google.dagger:hilt-android-compiler:2.51")
-        implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+        implementation("com.google.dagger:hilt-android:2.58")
+        kapt("com.google.dagger:hilt-android-compiler:2.58")
+        implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
+        implementation("androidx.hilt:hilt-lifecycle-viewmodel-compose:1.3.0")
 
         // Retrofit + OkHttp
         implementation("com.squareup.retrofit2:retrofit:2.9.0")
@@ -145,9 +146,4 @@ fun secretProperty(name: String): String {
 
         // Debug
         debugImplementation(libs.androidx.compose.ui.tooling)
-        testImplementation(libs.junit)
-        androidTestImplementation(libs.androidx.junit)
-        androidTestImplementation(libs.androidx.espresso.core)
-        androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-        debugImplementation(libs.androidx.compose.ui.test.manifest)
     }

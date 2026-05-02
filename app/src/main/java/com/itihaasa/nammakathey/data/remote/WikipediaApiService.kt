@@ -6,7 +6,7 @@ import retrofit2.http.Path
 interface WikipediaApiService {
     @GET("api/rest_v1/page/summary/{placeName}")
     suspend fun getPageSummary(
-        @Path("placeName") placeName: String
+        @Path(value = "placeName", encoded = false) placeName: String
     ): WikipediaSummaryResponse
 }
 
