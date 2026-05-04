@@ -69,4 +69,12 @@ class ProfileViewModel @Inject constructor(
             }
         }
     }
+
+    fun signOut() {
+        profileRepository.signOut()
+        _uiState.update {
+            it.copy(profile = null, isSigningIn = false, errorMessage = null)
+        }
+        observeProfile()
+    }
 }

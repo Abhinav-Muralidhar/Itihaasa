@@ -1,5 +1,6 @@
 package com.itihaasa.nammakathey.data.repository
 
+import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FieldValue
@@ -36,16 +37,19 @@ class StoryRepository @Inject constructor(
     suspend fun getStory(place: Place, lang: String = "en"): Story = withContext(Dispatchers.IO) {
         val docKey = storyDocKey(place, lang)
         val storyDocument = firestore.collection(PLACES_COLLECTION).document(docKey)
+        Log.d("StoryCache", "Checking: $docKey")
         val cachedStory = runCatching {
             storyDocument
                 .get()
                 .await()
                 .toObject(Story::class.java)
         }.getOrNull()
+        Log.d("StoryCache", "Cache hit: ${cachedStory != null}")
 
         if (cachedStory != null) {
             if (lang == KANNADA_LANG && !cachedStory.storyText.isMostlyKannada()) {
                 val regeneratedStory = generateStory(place, lang)
+                Log.d("StoryCache", "Saving to Firestore: $docKey")
                 saveStoryDocument(storyDocument, regeneratedStory)
                 return@withContext regeneratedStory
             }
@@ -72,6 +76,7 @@ class StoryRepository @Inject constructor(
 
         val generatedStory = generateStory(place, lang)
 
+        Log.d("StoryCache", "Saving to Firestore: $docKey")
         saveStoryDocument(storyDocument, generatedStory)
 
         generatedStory
@@ -81,7 +86,7 @@ class StoryRepository @Inject constructor(
         storyDocument: com.google.firebase.firestore.DocumentReference,
         story: Story
     ) {
-        runCatching {
+        try {
             ensureStoryCacheSession()
             val storyPayload = gson.fromJson(
                 gson.toJson(story),
@@ -92,6 +97,9 @@ class StoryRepository @Inject constructor(
             storyDocument
                 .set(storyPayload)
                 .await()
+            Log.d("StoryCache", "Saved successfully")
+        } catch (e: Exception) {
+            Log.e("StoryCache", "Save failed: ${e.message}", e)
         }
     }
 
@@ -322,7 +330,7 @@ class StoryRepository @Inject constructor(
 
     private fun storyPrompt(place: Place, lang: String): String {
         val languageInstruction = if (lang == KANNADA_LANG) {
-            "Write every human-readable value only in Kannada using Kannada script. Do not use English, Telugu, Tamil, Hindi, Roman script, or mixed-language words. Transliterate place names and proper nouns into Kannada script. Translate quiz questions, options, answers, heroName, era, story, and significance into natural Kannada."
+            "STRICT REQUIREMENT: All JSON string values intended for users must be written exclusively in Kannada script. This includes heroName, era, story, significance, every quiz q, every option, and every answer. JSON field names must remain exactly as requested in English. Do not use English, Hindi, Tamil, Telugu, or Roman-script words inside any value. Transliterate proper nouns into Kannada script."
         } else {
             "Write every human-readable value in simple English."
         }
@@ -346,9 +354,11 @@ class StoryRepository @Inject constructor(
     }
 
     private suspend fun ensureStoryCacheSession() {
-        if (firebaseAuth.currentUser != null) return
-        firebaseAuth.signInAnonymously().await().user
-            ?: error("Anonymous sign-in failed.")
+        if (firebaseAuth.currentUser == null) {
+            firebaseAuth.signInAnonymously().await().user
+                ?: error("Anonymous sign-in failed.")
+        }
+        Log.d("StoryCache", "Auth uid: ${firebaseAuth.currentUser?.uid}")
     }
 
     private data class GeneratedStoryResponse(

@@ -1,10 +1,15 @@
 package com.itihaasa.nammakathey.ui.story
 
+import android.content.Intent
 import android.speech.tts.TextToSpeech
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
@@ -30,6 +35,7 @@ import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -56,6 +62,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
@@ -80,6 +87,7 @@ import com.itihaasa.nammakathey.ui.theme.Charcoal
 import com.itihaasa.nammakathey.ui.theme.HeritageOchre
 import com.itihaasa.nammakathey.ui.theme.Parchment
 import com.itihaasa.nammakathey.ui.theme.ParchmentVariant
+import com.itihaasa.nammakathey.ui.theme.RoyalIndigo
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -193,6 +201,7 @@ private fun StoryContent(
     var signInAction by rememberSaveable { mutableStateOf(PendingSignInAction.None) }
     var showStartSignInDialog by rememberSaveable { mutableStateOf(false) }
     var showSaveSignInDialog by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
     val quizQuestions = story.quiz.take(MAX_QUIZ_QUESTIONS)
     val chapters = remember(story.storyText, story.significance, story.lang) {
         story.toChapterSections()
@@ -220,115 +229,131 @@ private fun StoryContent(
         signInAction = PendingSignInAction.None
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        StoryImage(place = place, story = story)
-        StoryMetadata(place = place, story = story)
-        LanguageAndSpeechControls(
-            story = story,
-            textToRead = selectedChapter.body,
-            currentLang = currentLang,
-            onLanguageSelected = onLanguageSelected
-        )
-        ChapterTimeline(
-            chapters = chapters,
-            selectedIndex = selectedChapterIndex,
-            onChapterSelected = { selectedChapterIndex = it },
-            modifier = Modifier.padding(horizontal = 20.dp)
-        )
-        Text(
-            text = selectedChapter.title,
-            modifier = Modifier.padding(horizontal = 20.dp),
-            fontFamily = LoraSerif,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = HeritageOchre
-        )
-        Text(
-            text = selectedChapter.body,
-            modifier = Modifier.padding(horizontal = 20.dp),
-            fontFamily = LoraSerif,
-            fontSize = 15.sp,
-            lineHeight = 27.sp,
-            color = Charcoal
-        )
-        Surface(
-            modifier = Modifier.padding(horizontal = 20.dp),
-            color = ParchmentVariant.copy(alpha = 0.72f),
-            shape = RoundedCornerShape(12.dp)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
+            StoryImage(place = place, story = story)
+            StoryMetadata(place = place, story = story)
+            LanguageAndSpeechControls(
+                story = story,
+                textToRead = selectedChapter.body,
+                currentLang = currentLang,
+                onLanguageSelected = onLanguageSelected
+            )
+            ChapterTimeline(
+                chapters = chapters,
+                selectedIndex = selectedChapterIndex,
+                onChapterSelected = { selectedChapterIndex = it },
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
             Text(
-                text = story.significance,
-                modifier = Modifier.padding(12.dp),
+                text = selectedChapter.title,
+                modifier = Modifier.padding(horizontal = 20.dp),
                 fontFamily = LoraSerif,
-                fontSize = 14.sp,
-                lineHeight = 22.sp,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = HeritageOchre
+            )
+            Text(
+                text = selectedChapter.body,
+                modifier = Modifier.padding(horizontal = 20.dp),
+                fontFamily = LoraSerif,
+                fontSize = 15.sp,
+                lineHeight = 27.sp,
                 color = Charcoal
             )
-        }
-        QuizSection(
-            place = place,
-            questions = quizQuestions,
-            mode = quizMode,
-            selectedAnswers = selectedAnswers,
-            canSaveBadge = quizCanSaveBadge,
-            isGoogleSignedIn = isGoogleSignedIn,
-            isSigningIn = isSigningIn,
-            isBadgeSaving = isBadgeSaving,
-            badgeSaved = badgeSaved,
-            onStartQuizClick = {
-                if (isGoogleSignedIn) {
-                    quizCanSaveBadge = true
-                    quizMode = QuizMode.Quiz
-                } else {
-                    showStartSignInDialog = true
-                }
-            },
-            onAnswerSelected = { questionIndex, optionIndex ->
-                if (selectedAnswers.getOrElse(questionIndex) { -1 } == -1) {
-                    selectedAnswers = selectedAnswers.toMutableList().also {
-                        it[questionIndex] = optionIndex
+            Surface(
+                modifier = Modifier.padding(horizontal = 20.dp),
+                color = ParchmentVariant.copy(alpha = 0.72f),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = story.significance,
+                    modifier = Modifier.padding(12.dp),
+                    fontFamily = LoraSerif,
+                    fontSize = 14.sp,
+                    lineHeight = 22.sp,
+                    color = Charcoal
+                )
+            }
+            QuizSection(
+                questions = quizQuestions,
+                mode = quizMode,
+                selectedAnswers = selectedAnswers,
+                onStartQuizClick = {
+                    if (isGoogleSignedIn) {
+                        quizCanSaveBadge = true
+                        quizMode = QuizMode.Quiz
+                    } else {
+                        showStartSignInDialog = true
                     }
-                }
-            },
-            onRetry = {
-                selectedAnswers = List(quizQuestions.size) { -1 }
-                quizMode = QuizMode.Quiz
-            },
-            onAwardVisible = {
-                quizMode = QuizMode.Award
-                if (quizCanSaveBadge && isGoogleSignedIn && !badgeSaved) {
-                    onSaveBadge()
-                }
-            },
-            onSaveBadgeClick = {
-                if (isGoogleSignedIn) {
-                    onSaveBadge()
-                } else {
-                    showSaveSignInDialog = true
-                }
-            },
-            modifier = Modifier.padding(horizontal = 20.dp)
-        )
-        ChatSection(
-            messages = chatMessages,
-            isLoading = isChatLoading,
-            input = chatInput,
-            onInputChange = { chatInput = it },
-            onSubmit = {
-                val question = chatInput.trim()
-                if (question.isNotBlank()) {
-                    onQuestionSubmitted(question)
-                    chatInput = ""
-                }
-            },
-            modifier = Modifier.padding(horizontal = 20.dp)
-        )
+                },
+                onAnswerSelected = { questionIndex, optionIndex ->
+                    if (selectedAnswers.getOrElse(questionIndex) { -1 } == -1) {
+                        selectedAnswers = selectedAnswers.toMutableList().also {
+                            it[questionIndex] = optionIndex
+                        }
+                    }
+                },
+                onRetry = {
+                    selectedAnswers = List(quizQuestions.size) { -1 }
+                    quizMode = QuizMode.Quiz
+                },
+                onAwardVisible = {
+                    quizMode = QuizMode.Award
+                    if (quizCanSaveBadge && isGoogleSignedIn && !badgeSaved) {
+                        onSaveBadge()
+                    }
+                },
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+            ChatSection(
+                messages = chatMessages,
+                isLoading = isChatLoading,
+                input = chatInput,
+                onInputChange = { chatInput = it },
+                onSubmit = {
+                    val question = chatInput.trim()
+                    if (question.isNotBlank()) {
+                        onQuestionSubmitted(question)
+                        chatInput = ""
+                    }
+                },
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+        }
+
+        if (quizMode == QuizMode.Award) {
+            HeritageBadgeAwardOverlay(
+                place = place,
+                isGoogleSignedIn = isGoogleSignedIn,
+                isSigningIn = isSigningIn,
+                isBadgeSaving = isBadgeSaving,
+                badgeSaved = badgeSaved,
+                onShareClick = {
+                    val message = "I earned a Namma Kathey heritage badge for ${place.name}, ${place.district}."
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, message)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Share your achievement"))
+                },
+                onContinueClick = { quizMode = QuizMode.Reading },
+                onSaveBadgeClick = {
+                    if (isGoogleSignedIn) {
+                        onSaveBadge()
+                    } else {
+                        showSaveSignInDialog = true
+                    }
+                },
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
     }
 
     if (showStartSignInDialog) {
@@ -402,24 +427,30 @@ private fun LanguageAndSpeechControls(
 ) {
     val context = LocalContext.current
     var textToSpeech by remember { mutableStateOf<TextToSpeech?>(null) }
+    var isTextToSpeechReady by remember { mutableStateOf(false) }
     var isReading by rememberSaveable(story.placeId, story.lang) { mutableStateOf(false) }
 
     DisposableEffect(context) {
         val tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                textToSpeech?.language = story.lang.toSpeechLocale()
+                isTextToSpeechReady = true
+            } else {
+                isTextToSpeechReady = false
             }
         }
         textToSpeech = tts
         onDispose {
+            isTextToSpeechReady = false
             tts.stop()
             tts.shutdown()
             textToSpeech = null
         }
     }
 
-    LaunchedEffect(story.lang) {
-        textToSpeech?.language = story.lang.toSpeechLocale()
+    LaunchedEffect(story.lang, isTextToSpeechReady) {
+        if (isTextToSpeechReady) {
+            textToSpeech?.language = story.lang.toSpeechLocale()
+        }
         if (isReading) {
             textToSpeech?.stop()
             isReading = false
@@ -444,9 +475,12 @@ private fun LanguageAndSpeechControls(
             label = { Text("KN") }
         )
         IconButton(
+            enabled = isTextToSpeechReady,
             onClick = {
-                textToSpeech?.language = story.lang.toSpeechLocale()
-                textToSpeech?.speak(
+                val tts = textToSpeech ?: return@IconButton
+                if (!isTextToSpeechReady) return@IconButton
+                tts.language = story.lang.toSpeechLocale()
+                tts.speak(
                     textToRead,
                     TextToSpeech.QUEUE_FLUSH,
                     null,
@@ -488,20 +522,13 @@ private fun LanguageAndSpeechControls(
 
 @Composable
 private fun QuizSection(
-    place: Place,
     questions: List<QuizQuestion>,
     mode: QuizMode,
     selectedAnswers: List<Int>,
-    canSaveBadge: Boolean,
-    isGoogleSignedIn: Boolean,
-    isSigningIn: Boolean,
-    isBadgeSaving: Boolean,
-    badgeSaved: Boolean,
     onStartQuizClick: () -> Unit,
     onAnswerSelected: (Int, Int) -> Unit,
     onRetry: () -> Unit,
     onAwardVisible: () -> Unit,
-    onSaveBadgeClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (questions.isEmpty()) return
@@ -555,47 +582,130 @@ private fun QuizSection(
                 }
             }
             QuizMode.Award -> {
-                Surface(
-                    color = ParchmentVariant.copy(alpha = 0.84f),
-                    shape = RoundedCornerShape(14.dp)
+                Unit
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeritageBadgeAwardOverlay(
+    place: Place,
+    isGoogleSignedIn: Boolean,
+    isSigningIn: Boolean,
+    isBadgeSaving: Boolean,
+    badgeSaved: Boolean,
+    onShareClick: () -> Unit,
+    onContinueClick: () -> Unit,
+    onSaveBadgeClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "badge-award")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.92f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 760, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "badge-award-scale"
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.58f))
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = modifier.fillMaxWidth(),
+            color = Parchment,
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "★",
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    },
+                    fontSize = 64.sp,
+                    color = HeritageOchre,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Heritage Badge Earned!",
+                    fontFamily = LoraSerif,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = RoyalIndigo,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = place.name,
+                    fontFamily = LoraSerif,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Charcoal,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = place.district,
+                    fontFamily = LoraSerif,
+                    fontSize = 14.sp,
+                    color = Charcoal.copy(alpha = 0.72f),
+                    textAlign = TextAlign.Center
+                )
+                when {
+                    badgeSaved -> Text(
+                        text = "Saved to your journey.",
+                        fontFamily = LoraSerif,
+                        fontSize = 14.sp,
+                        color = RoyalIndigo,
+                        textAlign = TextAlign.Center
+                    )
+                    isBadgeSaving -> CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = HeritageOchre
+                    )
+                }
+                Button(
+                    onClick = onShareClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = HeritageOchre,
+                        contentColor = Parchment
+                    )
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    Text("Share your achievement")
+                }
+                Button(
+                    onClick = onContinueClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = RoyalIndigo,
+                        contentColor = Parchment
+                    )
+                ) {
+                    Text("Continue Exploring")
+                }
+                if (!isGoogleSignedIn) {
+                    Button(
+                        onClick = onSaveBadgeClick,
+                        enabled = !isSigningIn,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = RoyalIndigo,
+                            contentColor = Parchment
+                        )
                     ) {
-                        Text(
-                            text = "Badge Awarded",
-                            fontFamily = LoraSerif,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = HeritageOchre
-                        )
-                        Text(
-                            text = "${place.name}, ${place.district}",
-                            fontFamily = LoraSerif,
-                            fontSize = 16.sp,
-                            color = Charcoal
-                        )
-                        when {
-                            badgeSaved -> Text(
-                                text = "Saved to your journey.",
-                                fontFamily = LoraSerif,
-                                fontSize = 14.sp,
-                                color = Charcoal
-                            )
-                            isBadgeSaving -> CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = HeritageOchre
-                            )
-                            !canSaveBadge || !isGoogleSignedIn -> Button(
-                                onClick = onSaveBadgeClick,
-                                enabled = !isSigningIn,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Sign in with Google to save your badge")
-                            }
-                        }
+                        Text(if (isSigningIn) "Signing in..." else "Sign in to save this badge")
                     }
                 }
             }

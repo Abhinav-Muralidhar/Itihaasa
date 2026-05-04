@@ -11,11 +11,11 @@ private val DarkColorScheme = darkColorScheme(
     primary = HeritageOchre,
     secondary = Parchment,
     tertiary = MutedClay,
-    primaryContainer = ForestGreen,
+    primaryContainer = RoyalIndigo,
     secondaryContainer = DeepIndigo,
     tertiaryContainer = MutedClay,
     background = Charcoal,
-    surface = ForestGreenDark,
+    surface = RoyalIndigoDark,
     surfaceVariant = DeepIndigo,
     outline = ParchmentVariant,
     outlineVariant = OutlineBrown,
@@ -31,10 +31,10 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = ForestGreen,
+    primary = RoyalIndigo,
     secondary = HeritageOchre,
     tertiary = MutedClay,
-    primaryContainer = ForestContainer,
+    primaryContainer = IndigoContainer,
     secondaryContainer = OchreContainer,
     tertiaryContainer = ClayContainer,
     background = Parchment,

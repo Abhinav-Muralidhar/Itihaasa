@@ -50,6 +50,10 @@ class ProfileRepository @Inject constructor(
         }
     }
 
+    fun signOut() {
+        firebaseAuth.signOut()
+    }
+
     fun observeProfile(): Flow<ProfileJourney?> = callbackFlow {
         val user = firebaseAuth.currentUser
         if (user == null || user.isAnonymous) {
