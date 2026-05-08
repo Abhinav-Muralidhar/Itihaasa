@@ -1,10 +1,14 @@
 package com.itihaasa.nammakathey.di
 
+import android.content.Context
+import android.content.SharedPreferences
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.gson.Gson
+import com.itihaasa.nammakathey.data.local.DistrictDataSource
 import com.itihaasa.nammakathey.data.remote.GeminiApiService
 import com.itihaasa.nammakathey.data.remote.WikipediaApiService
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -73,12 +77,27 @@ object NetworkModule {
     @Singleton
     fun provideFirebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance()
 
+    @Provides
+    @Singleton
+    fun provideSharedPreferences(
+        @ApplicationContext context: Context
+    ): SharedPreferences = context.getSharedPreferences(
+        "itihaasa_prefs",
+        Context.MODE_PRIVATE
+    )
+
+    @Provides
+    @Singleton
+    fun provideDistrictDataSource(
+        @ApplicationContext context: Context
+    ): DistrictDataSource = DistrictDataSource(context)
+
     private fun geminiHttpClient(): OkHttpClient {
         return OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
             .readTimeout(90, TimeUnit.SECONDS)
-            .callTimeout(120, TimeUnit.SECONDS)
+            .callTimeout(100, TimeUnit.SECONDS)
             .build()
     }
 

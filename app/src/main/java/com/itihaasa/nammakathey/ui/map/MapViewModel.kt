@@ -1,11 +1,17 @@
 package com.itihaasa.nammakathey.ui.map
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.android.gms.maps.model.LatLng
 import com.itihaasa.nammakathey.data.local.LocationsDataSource
 import com.itihaasa.nammakathey.model.Place
 import com.itihaasa.nammakathey.model.PlaceType
+import com.itihaasa.nammakathey.model.Story
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -14,22 +20,33 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 data class MapUiState(
     val allPlaces: List<Place> = emptyList(),
     val filteredPlaces: List<Place> = emptyList(),
     val selectedPlace: Place? = null,
+    val cachedStory: Story? = null,
     val searchQuery: String = "",
     val activeFilters: Set<PlaceType> = PlaceType.entries.toSet(),
     val isLoading: Boolean = true,
     val todayInHistory: Place? = null,
-    val cameraTarget: LatLng? = null
+    val cameraTarget: LatLng? = null,
+    val exploredPlaceIds: Set<String> = emptySet(),
+    val exploredDistricts: Set<String> = emptySet(),
+    val unlockedDistricts: Set<String> = emptySet(),
+    val homeDistrict: String? = null,
+    val showHomeDistrictSheet: Boolean = false
 )
 
 @HiltViewModel
 class MapViewModel @Inject constructor(
-    private val locationsDataSource: LocationsDataSource
+    private val locationsDataSource: LocationsDataSource,
+    private val firebaseAuth: FirebaseAuth,
+    private val firestore: FirebaseFirestore,
+    @ApplicationContext context: Context
 ) : ViewModel() {
+    private val preferences = context.getSharedPreferences(MAP_PREFERENCES, Context.MODE_PRIVATE)
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
 
@@ -66,11 +83,50 @@ class MapViewModel @Inject constructor(
     }
 
     fun onPlaceSelected(place: Place) {
-        _uiState.update { it.copy(selectedPlace = place) }
+        _uiState.update { it.copy(selectedPlace = place, cachedStory = null) }
+        viewModelScope.launch(Dispatchers.IO) {
+            val cached = runCatching {
+                firestore.collection("places")
+                    .document("${place.stateId}_${place.id}_en")
+                    .get()
+                    .await()
+                    .toObject(Story::class.java)
+            }.getOrNull()
+            _uiState.update { state ->
+                if (state.selectedPlace?.id == place.id) {
+                    state.copy(cachedStory = cached)
+                } else {
+                    state
+                }
+            }
+        }
     }
 
-    fun onSelectedPlaceDismissed() {
-        _uiState.update { it.copy(selectedPlace = null) }
+    fun setHomeDistrict(district: String) {
+        preferences.edit()
+            .putString(KEY_HOME_DISTRICT, district)
+            .putBoolean(KEY_HOME_DISTRICT_SET, true)
+            .apply()
+        val target = locationsDataSource.getDistrictCentroid(district)
+        _uiState.update {
+            it.copy(
+                homeDistrict = district,
+                showHomeDistrictSheet = false,
+                cameraTarget = target
+            )
+        }
+        updateUnlockedDistricts()
+        saveHomeDistrictToFirestore(district)
+    }
+
+    fun skipHomeDistrict() {
+        preferences.edit().putBoolean(KEY_HOME_DISTRICT_SET, true).apply()
+        _uiState.update { it.copy(showHomeDistrictSheet = false) }
+        updateUnlockedDistricts()
+    }
+
+    fun onPlaceDismissed() {
+        _uiState.update { it.copy(selectedPlace = null, cachedStory = null) }
     }
 
     fun onCameraTargetConsumed() {
@@ -80,13 +136,89 @@ class MapViewModel @Inject constructor(
     private fun loadPlaces() {
         viewModelScope.launch(Dispatchers.IO) {
             val places = locationsDataSource.getAllPlaces()
+            val homeDistrict = preferences.getString(KEY_HOME_DISTRICT, null)
+            val homeDistrictSet = preferences.getBoolean(KEY_HOME_DISTRICT_SET, false)
+            val signedInUser = firebaseAuth.currentUser?.takeUnless { it.isAnonymous }
             _uiState.update {
                 it.copy(
                     allPlaces = places,
                     filteredPlaces = places,
                     isLoading = false,
-                    todayInHistory = locationsDataSource.getTodayInHistory()
+                    todayInHistory = locationsDataSource.getTodayInHistory(),
+                    homeDistrict = homeDistrict,
+                    showHomeDistrictSheet = !homeDistrictSet && signedInUser == null
                 )
+            }
+            observeUserProgress()
+            updateUnlockedDistricts()
+        }
+    }
+
+    private fun observeUserProgress() {
+        val user = firebaseAuth.currentUser ?: return
+        if (user.isAnonymous) return
+        firestore.collection("users")
+            .document(user.uid)
+            .addSnapshotListener { snapshot, _ ->
+                val badges = (snapshot?.get("badgesEarned") as? List<*>)
+                    ?.mapNotNull { it as? Map<*, *> }
+                    .orEmpty()
+                val exploredIds = badges.mapNotNull { it["placeId"] as? String }.toSet()
+                val exploredDistricts = badges.mapNotNull { it["district"] as? String }.toSet()
+                val firestoreHomeDistrict = snapshot?.getString("homeDistrict")
+                    ?.takeIf { it.isNotBlank() }
+                _uiState.update {
+                    it.copy(
+                        exploredPlaceIds = exploredIds,
+                        exploredDistricts = exploredDistricts,
+                        homeDistrict = firestoreHomeDistrict ?: it.homeDistrict,
+                        showHomeDistrictSheet = when {
+                            firestoreHomeDistrict != null -> false
+                            it.homeDistrict.isNullOrBlank() -> true
+                            else -> it.showHomeDistrictSheet
+                        }
+                    )
+                }
+                firestoreHomeDistrict?.let { district ->
+                    preferences.edit()
+                        .putString(KEY_HOME_DISTRICT, district)
+                        .putBoolean(KEY_HOME_DISTRICT_SET, true)
+                        .apply()
+                }
+                updateUnlockedDistricts()
+            }
+    }
+
+    private fun updateUnlockedDistricts() {
+        _uiState.update { state ->
+            val badgeCount = state.exploredPlaceIds.size
+            val homeDistrict = state.homeDistrict
+            val unlocked = buildSet {
+                if (!homeDistrict.isNullOrBlank()) add(homeDistrict)
+                addAll(state.exploredDistricts)
+                if (badgeCount >= 1 && !homeDistrict.isNullOrBlank()) {
+                    addAll(
+                        state.allPlaces
+                            .filter { it.district == homeDistrict }
+                            .flatMap { it.adjacentDistricts }
+                    )
+                }
+                if (badgeCount >= 3 && !homeDistrict.isNullOrBlank()) {
+                    addAll(state.allPlaces.map { it.district })
+                }
+            }
+            state.copy(unlockedDistricts = unlocked)
+        }
+    }
+
+    private fun saveHomeDistrictToFirestore(district: String) {
+        val user = firebaseAuth.currentUser ?: return
+        if (user.isAnonymous) return
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                firestore.collection("users")
+                    .document(user.uid)
+                    .set(mapOf("homeDistrict" to district), SetOptions.merge())
             }
         }
     }
@@ -104,5 +236,11 @@ class MapViewModel @Inject constructor(
             }
             state.copy(filteredPlaces = filtered)
         }
+    }
+
+    private companion object {
+        const val MAP_PREFERENCES = "itihaasa_prefs"
+        const val KEY_HOME_DISTRICT = "home_district"
+        const val KEY_HOME_DISTRICT_SET = "home_district_set"
     }
 }

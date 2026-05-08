@@ -19,10 +19,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,6 +35,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,9 +61,12 @@ import com.google.maps.android.compose.clustering.Clustering
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.itihaasa.nammakathey.model.Place
 import com.itihaasa.nammakathey.model.PlaceType
-import com.itihaasa.nammakathey.ui.story.StoryBottomSheet
-import com.itihaasa.nammakathey.ui.story.StoryViewModel
 import com.itihaasa.nammakathey.utils.pinColorForType
+import com.itihaasa.nammakathey.ui.onboarding.HomeDistrictSheet
+import com.itihaasa.nammakathey.ui.story.StoryBottomSheet
+import com.itihaasa.nammakathey.ui.theme.HeritageOchre
+import com.itihaasa.nammakathey.ui.theme.Parchment
+import com.itihaasa.nammakathey.ui.theme.RoyalIndigo
 
 private val KarnatakaCenter = LatLng(15.3173, 75.7139)
 private val KarnatakaBounds = LatLngBounds(
@@ -71,11 +77,11 @@ private val KarnatakaBounds = LatLngBounds(
 @Composable
 fun MapScreen(
     viewModel: MapViewModel = hiltViewModel(),
-    storyViewModel: StoryViewModel = hiltViewModel(),
-    onProfileClick: () -> Unit = {}
+    onProfileClick: () -> Unit = {},
+    onPlaceClick: (String) -> Unit = {},
+    onDistrictClick: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val storyUiState by storyViewModel.uiState.collectAsState()
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(KarnatakaCenter, 6.5f)
     }
@@ -90,12 +96,6 @@ fun MapScreen(
         }
     }
 
-    LaunchedEffect(uiState.selectedPlace?.id) {
-        uiState.selectedPlace?.let { place ->
-            storyViewModel.loadStory(place)
-        }
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
@@ -107,8 +107,9 @@ fun MapScreen(
             ),
             properties = MapProperties(
                 latLngBoundsForCameraTarget = KarnatakaBounds,
-                minZoomPreference = 5.5f,
-                mapStyleOptions = MapStyleOptions(ParchmentMapStyleJson)
+                minZoomPreference = 6f,
+                maxZoomPreference = 12f,
+                mapStyleOptions = MapStyleOptions(KARNATAKA_MAP_STYLE)
             )
         ) {
             Clustering(
@@ -121,10 +122,16 @@ fun MapScreen(
                 },
                 onClusterItemClick = { place ->
                     viewModel.onPlaceSelected(place)
-                    false
+                    true
                 },
                 clusterContent = { cluster -> ClusterMarker(cluster) },
-                clusterItemContent = { place -> PlaceMarker(place) }
+                clusterItemContent = { place ->
+                    PlaceMarker(
+                        place = place,
+                        explored = place.id in uiState.exploredPlaceIds,
+                        locked = place.district !in uiState.unlockedDistricts
+                    )
+                }
             )
         }
 
@@ -142,24 +149,8 @@ fun MapScreen(
                 SearchField(
                     query = uiState.searchQuery,
                     onQueryChange = viewModel::onSearchQueryChanged,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = CircleShape,
-                    tonalElevation = 2.dp
-                ) {
-                    IconButton(
-                        onClick = onProfileClick,
-                        modifier = Modifier.size(54.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.AccountCircle,
-                            contentDescription = "Profile",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
             }
             Spacer(modifier = Modifier.height(8.dp))
             FilterChipsRow(
@@ -168,7 +159,7 @@ fun MapScreen(
             )
         }
 
-        uiState.todayInHistory?.takeIf { uiState.selectedPlace == null }?.let { place ->
+        uiState.todayInHistory?.let { place ->
             TodayInHistoryBanner(
                 place = place,
                 onTap = { viewModel.onPlaceSelected(place) },
@@ -185,201 +176,72 @@ fun MapScreen(
             )
         }
 
-        if (storyUiState.place != null) {
+        if (uiState.showHomeDistrictSheet) {
+            HomeDistrictSheet(
+                onDistrictSelected = viewModel::setHomeDistrict,
+                onSkip = viewModel::skipHomeDistrict
+            )
+        }
+
+        uiState.selectedPlace?.let { selectedPlace ->
+            val isDistrictUnlocked = selectedPlace.district in uiState.unlockedDistricts
             StoryBottomSheet(
-                uiState = storyUiState,
-                onQuestionSubmitted = storyViewModel::sendChatQuestion,
-                onLanguageSelected = storyViewModel::switchLanguage,
-                onGoogleSignInToken = storyViewModel::signInWithGoogle,
-                onSaveBadge = storyViewModel::saveBadge,
-                onDismiss = {
-                    storyViewModel.clearStory()
-                    viewModel.onSelectedPlaceDismissed()
-                }
+                place = selectedPlace,
+                story = uiState.cachedStory,
+                isDistrictUnlocked = isDistrictUnlocked,
+                homeDistrict = uiState.homeDistrict,
+                onReadStory = {
+                    onPlaceClick(selectedPlace.id)
+                    viewModel.onPlaceDismissed()
+                },
+                onDismiss = { viewModel.onPlaceDismissed() }
             )
         }
     }
 }
 
-private val ParchmentMapStyleJson = """
+private const val KARNATAKA_MAP_STYLE = """
 [
   {
-    "featureType": "all",
-    "elementType": "geometry",
-    "stylers": [
-      { "color": "#F5EDD6" }
-    ]
-  },
-  {
-    "featureType": "all",
-    "elementType": "labels.icon",
-    "stylers": [
-      { "visibility": "off" }
-    ]
-  },
-  {
-    "featureType": "all",
-    "elementType": "labels.text.fill",
-    "stylers": [
-      { "color": "#2C2C2C" }
-    ]
-  },
-  {
-    "featureType": "all",
-    "elementType": "labels.text.stroke",
-    "stylers": [
-      { "color": "#F5EDD6" }
-    ]
+    "featureType": "administrative.province",
+    "elementType": "geometry.stroke",
+    "stylers": [{"color": "#2E2A5F"}, {"weight": 2}]
   },
   {
     "featureType": "administrative.country",
     "elementType": "geometry.stroke",
-    "stylers": [
-      { "color": "#9A5F2E" },
-      { "weight": 1.8 }
-    ]
+    "stylers": [{"color": "#C47D28"}, {"weight": 1.5}]
   },
   {
-    "featureType": "administrative.province",
-    "elementType": "geometry.stroke",
-    "stylers": [
-      { "color": "#C17B3F" },
-      { "weight": 1.7 }
-    ]
+    "featureType": "poi",
+    "stylers": [{"visibility": "off"}]
   },
   {
-    "featureType": "administrative.locality",
-    "elementType": "geometry.stroke",
-    "stylers": [
-      { "color": "#C17B3F" },
-      { "weight": 0.9 },
-      { "visibility": "on" }
-    ]
+    "featureType": "transit",
+    "stylers": [{"visibility": "off"}]
   },
   {
-    "featureType": "administrative.locality",
+    "featureType": "road",
     "elementType": "labels",
-    "stylers": [
-      { "visibility": "on" }
-    ]
+    "stylers": [{"visibility": "off"}]
   },
   {
-    "featureType": "administrative.neighborhood",
-    "elementType": "geometry.stroke",
-    "stylers": [
-      { "color": "#D09A67" },
-      { "weight": 0.6 },
-      { "visibility": "on" }
-    ]
+    "featureType": "road",
+    "elementType": "geometry",
+    "stylers": [{"color": "#EDE0C4"}, {"weight": 0.5}]
   },
   {
-    "featureType": "administrative.land_parcel",
-    "elementType": "all",
-    "stylers": [
-      { "visibility": "off" }
-    ]
+    "featureType": "water",
+    "elementType": "geometry",
+    "stylers": [{"color": "#C4DDE8"}]
   },
   {
     "featureType": "landscape",
     "elementType": "geometry",
-    "stylers": [
-      { "color": "#F5EDD6" }
-    ]
-  },
-  {
-    "featureType": "landscape.natural",
-    "elementType": "geometry",
-    "stylers": [
-      { "color": "#EFE3C8" }
-    ]
-  },
-  {
-    "featureType": "poi",
-    "elementType": "labels",
-    "stylers": [
-      { "visibility": "off" }
-    ]
-  },
-  {
-    "featureType": "poi",
-    "elementType": "geometry",
-    "stylers": [
-      { "color": "#EFE4CB" },
-      { "visibility": "simplified" }
-    ]
-  },
-  {
-    "featureType": "road",
-    "elementType": "geometry",
-    "stylers": [
-      { "color": "#D4C4A8" },
-      { "visibility": "simplified" }
-    ]
-  },
-  {
-    "featureType": "road.highway",
-    "elementType": "geometry",
-    "stylers": [
-      { "color": "#CDB78F" },
-      { "weight": 0.9 },
-      { "visibility": "simplified" }
-    ]
-  },
-  {
-    "featureType": "road.arterial",
-    "elementType": "geometry",
-    "stylers": [
-      { "color": "#D8C8AA" },
-      { "weight": 0.7 },
-      { "visibility": "simplified" }
-    ]
-  },
-  {
-    "featureType": "road.local",
-    "elementType": "geometry",
-    "stylers": [
-      { "color": "#E4D8C2" },
-      { "weight": 0.45 },
-      { "visibility": "simplified" }
-    ]
-  },
-  {
-    "featureType": "road",
-    "elementType": "labels",
-    "stylers": [
-      { "visibility": "off" }
-    ]
-  },
-  {
-    "featureType": "transit",
-    "elementType": "all",
-    "stylers": [
-      { "visibility": "off" }
-    ]
-  },
-  {
-    "featureType": "water",
-    "elementType": "geometry",
-    "stylers": [
-      { "color": "#C4DDE8" }
-    ]
-  },
-  {
-    "featureType": "water",
-    "elementType": "labels.text.fill",
-    "stylers": [
-      { "color": "#53717C" }
-    ]
-  },
-  {
-    "featureType": "water",
-    "elementType": "labels.text.stroke",
-    "stylers": [
-      { "color": "#DDEAEF" }
-    ]
+    "stylers": [{"color": "#F6EEDC"}]
   }
 ]
-""".trimIndent()
+"""
 
 @Composable
 private fun SearchField(
@@ -447,19 +309,34 @@ private fun FilterChipsRow(
 }
 
 @Composable
-private fun PlaceMarker(place: Place) {
+private fun PlaceMarker(
+    place: Place,
+    explored: Boolean,
+    locked: Boolean
+) {
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(if (explored) 41.dp else 38.dp)
             .border(BorderStroke(2.dp, Color.White), CircleShape)
-            .background(pinColorForType(place.type), CircleShape),
+            .background(
+                when {
+                    explored -> HeritageOchre
+                    locked -> RoyalIndigo.copy(alpha = 0.82f)
+                    else -> pinColorForType(place.type)
+                },
+                CircleShape
+            ),
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Default.LocationOn,
+            imageVector = when {
+                explored -> Icons.Default.Check
+                locked -> Icons.Default.Lock
+                else -> Icons.Default.LocationOn
+            },
             contentDescription = null,
             tint = Color.White,
-            modifier = Modifier.size(22.dp)
+            modifier = Modifier.size(if (locked) 18.dp else 22.dp)
         )
     }
 }

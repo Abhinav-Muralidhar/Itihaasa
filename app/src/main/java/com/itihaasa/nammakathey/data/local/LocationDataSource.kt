@@ -1,6 +1,7 @@
 package com.itihaasa.nammakathey.data.local
 
 import android.content.Context
+import com.google.android.gms.maps.model.LatLng
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.itihaasa.nammakathey.model.Place
@@ -25,6 +26,24 @@ class LocationsDataSource @Inject constructor(
     fun getAllPlaces(): List<Place> = places
 
     fun getPlaceById(id: String): Place? = places.find { it.id == id }
+
+    fun getPlacesByDistrict(district: String): List<Place> =
+        getAllPlaces()
+            .filter { it.district.equals(district, ignoreCase = true) }
+            .sortedBy { it.chronologicalOrder }
+
+    fun getDistrictCentroid(district: String): LatLng? {
+        val districtPlaces = getPlacesByDistrict(district)
+        if (districtPlaces.isEmpty()) return null
+        val explicit = districtPlaces.firstOrNull {
+            it.districtCentroidLat != null && it.districtCentroidLng != null
+        }
+        return explicit?.let { LatLng(it.districtCentroidLat ?: it.lat, it.districtCentroidLng ?: it.lng) }
+            ?: LatLng(
+                districtPlaces.map { it.lat }.average(),
+                districtPlaces.map { it.lng }.average()
+            )
+    }
 
     fun searchPlaces(query: String): List<Place> {
         val q = query.lowercase().trim()

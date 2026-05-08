@@ -6,6 +6,7 @@ data class UserProfile(
     val photoUrl: String = "",
     val preferredLang: String = "en",
     val badgesEarned: List<String> = emptyList(),
+    val explorerRank: ExplorerRank = ExplorerRank.NAVARANGA,
     val placesExplored: List<ExploredPlace> = emptyList(),
     val quizStreak: Int = 0,
     val lastActiveDate: Long = 0L,

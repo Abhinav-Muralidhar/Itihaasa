@@ -1,22 +1,28 @@
 package com.itihaasa.nammakathey.data.remote
 
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.Path
 import retrofit2.http.POST
 
 interface GeminiApiService {
-    @POST(GEMINI_GENERATE_CONTENT_PATH)
+    @GET("models")
+    suspend fun listModels(
+        @Header("x-goog-api-key") apiKey: String
+    ): GeminiModelsResponse
+
+    @POST("{model}:generateContent")
     suspend fun generateContent(
+        @Path("model", encoded = true) model: String,
         @Header("x-goog-api-key") apiKey: String,
         @Body request: GeminiGenerateContentRequest
     ): GeminiGenerateContentResponse
 }
 
-private const val GEMINI_GENERATE_CONTENT_PATH =
-    "models/gemma-3-4b-it:generateContent"
-
 data class GeminiGenerateContentRequest(
-    val contents: List<GeminiContent>
+    val contents: List<GeminiContent>,
+    val generationConfig: GeminiGenerationConfig? = null
 )
 
 data class GeminiContent(
@@ -34,4 +40,19 @@ data class GeminiGenerateContentResponse(
 
 data class GeminiCandidate(
     val content: GeminiContent? = null
+)
+
+data class GeminiGenerationConfig(
+    val temperature: Double? = null,
+    val maxOutputTokens: Int? = null,
+    val responseMimeType: String? = null
+)
+
+data class GeminiModelsResponse(
+    val models: List<GeminiModel> = emptyList()
+)
+
+data class GeminiModel(
+    val name: String = "",
+    val supportedGenerationMethods: List<String> = emptyList()
 )

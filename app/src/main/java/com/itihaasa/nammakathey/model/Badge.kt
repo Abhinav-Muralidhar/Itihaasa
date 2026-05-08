@@ -4,5 +4,6 @@ data class Badge(
     val placeId: String = "",
     val placeName: String = "",
     val district: String = "",
-    val earnedAt: Long = 0L
+    val earnedAt: Long = 0L,
+    val badgeType: String = "hero"
 )

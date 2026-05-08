@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -14,12 +15,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -29,6 +38,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -37,9 +47,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import androidx.navigation.NavType
+import android.net.Uri
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.core.spring
+import com.itihaasa.nammakathey.ui.auth.AuthScreen
 import com.itihaasa.nammakathey.ui.map.MapScreen
 import com.itihaasa.nammakathey.ui.profile.ProfileScreen
+import com.itihaasa.nammakathey.ui.profile.ProfileSetupScreen
+import com.itihaasa.nammakathey.ui.story.StoryScreen
+import com.itihaasa.nammakathey.ui.story.StoryTabScreen
+import com.itihaasa.nammakathey.ui.district.DistrictScreen
 import com.itihaasa.nammakathey.ui.theme.Charcoal
 import com.itihaasa.nammakathey.ui.theme.HeritageOchre
 import com.itihaasa.nammakathey.ui.theme.Parchment
@@ -49,7 +72,16 @@ import kotlinx.coroutines.delay
 
 sealed class Screen(val route: String) {
     data object Map : Screen("map")
+    data object Stories : Screen("stories")
     data object Profile : Screen("profile")
+    data object Auth : Screen("auth")
+    data object ProfileSetup : Screen("profile_setup")
+    data object District : Screen("district/{district}") {
+        fun route(district: String): String = "district/${Uri.encode(district)}"
+    }
+    data object Story : Screen("story/{placeId}") {
+        fun route(placeId: String): String = "story/$placeId"
+    }
 }
 
 @Composable
@@ -58,12 +90,39 @@ fun NammaKatheyRoot() {
     var showSplash by rememberSaveable { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        delay(1200)
-        showSplash = false
+        if (showSplash) {
+            delay(2200)
+            showSplash = false
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold { innerPadding ->
+        val backStackEntry by navController.currentBackStackEntryAsState()
+        val currentRoute = backStackEntry?.destination?.route
+        val showBottomBar = currentRoute in setOf(
+            Screen.Map.route,
+            Screen.Stories.route,
+            Screen.Profile.route
+        )
+
+        Scaffold(
+            bottomBar = {
+                if (showBottomBar) {
+                    AppBottomBar(
+                        currentRoute = currentRoute,
+                        onNavigate = { route ->
+                            navController.navigate(route) {
+                                popUpTo(Screen.Map.route) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    )
+                }
+            }
+        ) { innerPadding ->
             NavHost(
                 navController = navController,
                 startDestination = Screen.Map.route,
@@ -71,12 +130,75 @@ fun NammaKatheyRoot() {
             ) {
                 composable(Screen.Map.route) {
                     MapScreen(
-                        onProfileClick = { navController.navigate(Screen.Profile.route) }
+                        onProfileClick = { navController.navigate(Screen.Profile.route) },
+                        onPlaceClick = { placeId -> navController.navigate(Screen.Story.route(placeId)) },
+                        onDistrictClick = { district -> navController.navigate(Screen.District.route(district)) }
+                    )
+                }
+                composable(Screen.Stories.route) {
+                    StoryTabScreen(
+                        onStoryClick = { placeId ->
+                            navController.navigate(Screen.Story.route(placeId))
+                        }
+                    )
+                }
+                composable(
+                    route = Screen.District.route,
+                    arguments = listOf(navArgument("district") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val district = Uri.decode(backStackEntry.arguments?.getString("district").orEmpty())
+                    DistrictScreen(
+                        district = district,
+                        onBackClick = { navController.popBackStack() },
+                        onPlaceClick = { placeId -> navController.navigate(Screen.Story.route(placeId)) }
                     )
                 }
                 composable(Screen.Profile.route) {
                     ProfileScreen(
-                        onBackClick = { navController.popBackStack() }
+                        onBackClick = { navController.popBackStack() },
+                        onAuthClick = { navController.navigate(Screen.Auth.route) },
+                        onSetupClick = { navController.navigate(Screen.ProfileSetup.route) }
+                    )
+                }
+                composable(Screen.Auth.route) {
+                    AuthScreen(
+                        onBackClick = { navController.popBackStack() },
+                        onAuthComplete = { profileComplete ->
+                            val destination = if (profileComplete) {
+                                Screen.Profile.route
+                            } else {
+                                Screen.ProfileSetup.route
+                            }
+                            navController.navigate(destination) {
+                                popUpTo(Screen.Auth.route) {
+                                    inclusive = true
+                                }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+                composable(Screen.ProfileSetup.route) {
+                    ProfileSetupScreen(
+                        onBackClick = { navController.popBackStack() },
+                        onSetupComplete = {
+                            navController.navigate(Screen.Stories.route) {
+                                popUpTo(Screen.ProfileSetup.route) {
+                                    inclusive = true
+                                }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+                composable(
+                    route = Screen.Story.route,
+                    arguments = listOf(navArgument("placeId") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val placeId = backStackEntry.arguments?.getString("placeId").orEmpty()
+                    StoryScreen(
+                        placeId = placeId,
+                        onNavigateBack = { navController.popBackStack() }
                     )
                 }
             }
@@ -85,13 +207,178 @@ fun NammaKatheyRoot() {
             visible = showSplash,
             exit = fadeOut()
         ) {
-            NammaKatheySplash()
+            StandardIntroScreen(onComplete = { showSplash = false })
         }
     }
 }
 
 @Composable
-private fun NammaKatheySplash() {
+private fun AppBottomBar(
+    currentRoute: String?,
+    onNavigate: (String) -> Unit
+) {
+    NavigationBar(containerColor = ParchmentLight) {
+        NavigationBarItem(
+            selected = currentRoute == Screen.Map.route,
+            onClick = { onNavigate(Screen.Map.route) },
+            icon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
+            label = { Text("Map") }
+        )
+        NavigationBarItem(
+            selected = currentRoute == Screen.Stories.route,
+            onClick = { onNavigate(Screen.Stories.route) },
+            icon = { Icon(Icons.Default.List, contentDescription = null) },
+            label = { Text("Stories") }
+        )
+        NavigationBarItem(
+            selected = currentRoute == Screen.Profile.route,
+            onClick = { onNavigate(Screen.Profile.route) },
+            icon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
+            label = { Text("Profile") }
+        )
+    }
+}
+
+@Composable
+private fun StandardIntroScreen(onComplete: () -> Unit) {
+    var wordVisible by rememberSaveable { mutableStateOf(false) }
+    var letterPhase by rememberSaveable { mutableStateOf(-1) }
+    val letterVariants = listOf("i", "t", "i", "h", "a", "a", "s", "a")
+    val transientVariants = listOf(
+        "\u0C87",
+        "\u0924",
+        "\u0987",
+        "\u0C39",
+        "\u0A05",
+        "\u0B85",
+        "\u09B8",
+        "\u0C85"
+    )
+
+    LaunchedEffect(Unit) {
+        delay(180)
+        wordVisible = true
+        repeat(letterVariants.size) { index ->
+            letterPhase = index
+            delay(130)
+            letterPhase = -1
+            delay(40)
+        }
+        delay(420)
+        onComplete()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Parchment),
+        contentAlignment = Alignment.Center
+    ) {
+        AnimatedVisibility(
+            visible = wordVisible,
+            enter = scaleIn(animationSpec = spring(dampingRatio = 0.72f)) + fadeIn()
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                letterVariants.forEachIndexed { index, char ->
+                    AnimatedContent(
+                        targetState = when {
+                            index < letterPhase -> char
+                            index == letterPhase -> transientVariants[index]
+                            else -> ""
+                        },
+                        label = "standard-intro-letter-$index"
+                    ) { value ->
+                        StandardLogoLetter(
+                            value = value,
+                            showDot = value.isNotBlank() && index == 0
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StandardLogoLetter(
+    value: String,
+    showDot: Boolean
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .height(10.dp)
+                .width(22.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (showDot) {
+                FlameDot()
+            }
+        }
+        Text(
+            text = value,
+            fontFamily = FontFamily.Serif,
+            fontSize = 46.sp,
+            fontWeight = FontWeight.Bold,
+            color = RoyalIndigo
+        )
+        Box(
+            modifier = Modifier
+                .height(5.dp)
+                .width(22.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (value == "a") {
+                Box(
+                    modifier = Modifier
+                        .height(2.dp)
+                        .width(15.dp)
+                        .background(HeritageOchre, RoundedCornerShape(999.dp))
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FlameDot() {
+    Canvas(modifier = Modifier.size(10.dp)) {
+        val w = size.width
+        val h = size.height
+        val flame = Path().apply {
+            moveTo(w * 0.5f, 0f)
+            quadraticBezierTo(w, h * 0.38f, w * 0.5f, h)
+            quadraticBezierTo(0f, h * 0.38f, w * 0.5f, 0f)
+            close()
+        }
+        drawPath(flame, HeritageOchre)
+    }
+}
+
+/*
+@Composable
+fun IntroScreen(onComplete: () -> Unit) {
+    var markVisible by rememberSaveable { mutableStateOf(false) }
+    var wordVisible by rememberSaveable { mutableStateOf(false) }
+    var letterPhase by rememberSaveable { mutableStateOf(-1) }
+    var taglineVisible by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        markVisible = true
+        delay(400)
+        wordVisible = true
+        delay(400)
+        repeat(8) { index ->
+            letterPhase = index
+            delay(150)
+            letterPhase = -1
+            delay(60)
+        }
+        taglineVisible = true
+        delay(2500L - 800L - 8L * 210L)
+        onComplete()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -100,30 +387,98 @@ private fun NammaKatheySplash() {
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            NammaKatheyLogo()
-            Text(
-                text = "Itihaasa",
-                fontFamily = FontFamily.Serif,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                color = RoyalIndigo,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = "Namma Kathey",
-                fontSize = 13.sp,
-                color = Charcoal.copy(alpha = 0.72f),
-                textAlign = TextAlign.Center
-            )
-            Box(
-                modifier = Modifier
-                    .width(88.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(HeritageOchre)
-            )
+            AnimatedVisibility(
+                visible = markVisible,
+                enter = scaleIn(animationSpec = spring(dampingRatio = 0.55f)) + fadeIn()
+            ) {
+                Text(
+                    text = "ಇ",
+                    fontFamily = FontFamily.Serif,
+                    fontSize = 0.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Transparent
+                )
+            }
+            AnimatedVisibility(visible = wordVisible, enter = fadeIn()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                    val latin = "itihaasa"
+                    val displayScripts = listOf(
+                        "\u0C87",
+                        "\u0924",
+                        "\u0987",
+                        "\u0C39",
+                        "\u0A05",
+                        "\u0B85",
+                        "\u09B8",
+                        "\u0C85"
+                    )
+                    latin.forEachIndexed { index, char ->
+                        AnimatedContent(
+                            targetState = if (letterPhase == index) displayScripts[index] else char.toString(),
+                            label = "intro-letter-$index"
+                        ) { value ->
+                            LogoLetter(value = value, latin = char)
+                        }
+                    }
+                }
+            }
+            AnimatedVisibility(visible = taglineVisible, enter = fadeIn()) {
+                Text(
+                    text = "karnataka · heritage · discovery",
+                    fontSize = 12.sp,
+                    color = HeritageOchre,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+*/
+
+@Composable
+private fun LogoLetter(
+    value: String,
+    latin: Char
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .height(8.dp)
+                .width(20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (latin == 'i') {
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .clip(CircleShape)
+                        .background(HeritageOchre)
+                )
+            }
+        }
+        Text(
+            text = value,
+            fontFamily = FontFamily.Serif,
+            fontSize = 42.sp,
+            fontWeight = FontWeight.Bold,
+            color = RoyalIndigo
+        )
+        Box(
+            modifier = Modifier
+                .height(5.dp)
+                .width(20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (latin == 'a') {
+                Box(
+                    modifier = Modifier
+                        .height(2.dp)
+                        .width(15.dp)
+                        .background(HeritageOchre, RoundedCornerShape(999.dp))
+                )
+            }
         }
     }
 }
