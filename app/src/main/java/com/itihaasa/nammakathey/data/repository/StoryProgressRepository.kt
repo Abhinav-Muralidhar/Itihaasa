@@ -19,25 +19,35 @@ class StoryProgressRepository @Inject constructor(
     private val firestore: FirebaseFirestore
 ) {
     private val preferences = context.getSharedPreferences(STORY_PROGRESS_PREFS, Context.MODE_PRIVATE)
+    private val legacyPreferences = context.getSharedPreferences(LEGACY_STORY_PROGRESS_PREFS, Context.MODE_PRIVATE)
 
     fun getCompletedHeroIds(): Set<String> =
-        preferences.getStringSet(KEY_COMPLETED_HERO_IDS, emptySet()).orEmpty()
+        preferences.getStringSet(KEY_COMPLETED_HERO_IDS, emptySet()).orEmpty() +
+            legacyPreferences.getStringSet(KEY_COMPLETED_HERO_IDS, emptySet()).orEmpty()
 
     fun markHeroCompletedLocally(hero: StoryCatalogEntry): Set<String> {
         if (hero.placeId.isBlank()) return getCompletedHeroIds()
         val updated = getCompletedHeroIds() + hero.placeId
+        val earnedAtKey = KEY_COMPLETED_HERO_EARNED_AT_PREFIX + hero.placeId
+        val earnedAt = preferences.getLong(earnedAtKey, 0L).takeIf { it > 0L }
+            ?: System.currentTimeMillis()
         preferences.edit()
             .putStringSet(KEY_COMPLETED_HERO_IDS, updated)
+            .putLong(earnedAtKey, earnedAt)
             .apply()
         return updated
     }
 
     suspend fun getProgressState(localHomeDistrict: String?): StoryProgressState {
         val localCompleted = getCompletedHeroIds()
-        val localUnlocked = preferences.getStringSet(KEY_UNLOCKED_DISTRICTS, emptySet()).orEmpty()
-        val manualUnlocked = preferences.getStringSet(KEY_MANUAL_UNLOCKED_DISTRICTS, emptySet()).orEmpty()
-        val localActiveDistrict = preferences.getString(KEY_ACTIVE_DISTRICT, null)
-            ?.takeIf { it.isNotBlank() }
+        val localUnlocked = preferences.getStringSet(KEY_UNLOCKED_DISTRICTS, emptySet()).orEmpty() +
+            legacyPreferences.getStringSet(KEY_UNLOCKED_DISTRICTS, emptySet()).orEmpty()
+        val manualUnlocked = preferences.getStringSet(KEY_MANUAL_UNLOCKED_DISTRICTS, emptySet()).orEmpty() +
+            legacyPreferences.getStringSet(KEY_MANUAL_UNLOCKED_DISTRICTS, emptySet()).orEmpty()
+        val localActiveDistrict = (
+            preferences.getString(KEY_ACTIVE_DISTRICT, null)
+                ?: legacyPreferences.getString(KEY_ACTIVE_DISTRICT, null)
+            )?.takeIf { it.isNotBlank() }
         val user = firebaseAuth.currentUser
         if (user == null || user.isAnonymous) {
             val homeDistrict = localHomeDistrict?.takeIf { it.isNotBlank() }
@@ -279,7 +289,8 @@ class StoryProgressRepository @Inject constructor(
     }
 
     private companion object {
-        const val STORY_PROGRESS_PREFS = "story_progress"
+        const val STORY_PROGRESS_PREFS = "itihaasa_prefs"
+        const val LEGACY_STORY_PROGRESS_PREFS = "story_progress"
         const val USERS_COLLECTION = "users"
         const val KEY_HOME_DISTRICT = "home_district"
         const val KEY_HOME_DISTRICT_SET = "home_district_set"
@@ -288,6 +299,7 @@ class StoryProgressRepository @Inject constructor(
         const val KEY_COMPLETED_DISTRICT_BADGES = "completed_district_badges"
         const val KEY_UNLOCKED_DISTRICTS = "unlocked_districts"
         const val KEY_MANUAL_UNLOCKED_DISTRICTS = "manually_unlocked_districts"
+        const val KEY_COMPLETED_HERO_EARNED_AT_PREFIX = "completed_hero_earned_at_"
     }
 }
 

@@ -249,7 +249,7 @@ private fun RewardTemplateCard(
         modifier = Modifier.width(220.dp),
         color = ParchmentLight,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, accent.copy(alpha = if (active) 0.3f else 0.18f))
+        border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = if (active) 0.3f else 0.18f))
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -299,7 +299,7 @@ private fun RewardTemplateCard(
             Surface(
                 color = accent.copy(alpha = if (active) 0.12f else 0.08f),
                 shape = RoundedCornerShape(999.dp),
-                border = BorderStroke(1.dp, accent.copy(alpha = 0.24f))
+                border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.24f))
             ) {
                 Text(
                     text = statusText,
@@ -356,7 +356,7 @@ private fun ProfileHeader(profile: ProfileJourney, completedDistrictCount: Int) 
     Surface(
         color = RoyalIndigo,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.72f))
+        border = BorderStroke(1.dp, RoyalIndigo)
     ) {
         Column(
             modifier = Modifier
@@ -417,7 +417,7 @@ private fun ProfileAvatar(
                 .size(size.dp)
                 .clip(CircleShape)
                 .background(ParchmentLight)
-                .border(2.dp, HeritageOchre, CircleShape),
+                .border(2.dp, RoyalIndigo, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -434,7 +434,7 @@ private fun ProfileAvatar(
             modifier = Modifier
                 .size(size.dp)
                 .clip(CircleShape)
-                .border(2.dp, HeritageOchre, CircleShape),
+                .border(2.dp, RoyalIndigo, CircleShape),
             contentScale = ContentScale.Crop
         )
     }
@@ -451,7 +451,7 @@ private fun HeaderMetric(
         modifier = modifier,
         color = ParchmentLight.copy(alpha = 0.1f),
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, ParchmentLight.copy(alpha = 0.14f))
+        border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.18f))
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
@@ -484,8 +484,7 @@ private fun HeaderMetric(
 @Composable
 private fun JourneySummarySection(profile: ProfileJourney) {
     val badgeCount = profile.badgesEarned.distinctBy { it.placeId }.size
-    val currentRank = profile.explorerRank.takeIf { badgeCount >= it.badgesRequired }
-        ?: badgeCount.toExplorerRank()
+    val currentRank = badgeCount.toExplorerRank()
     val nextRank = ExplorerRank.entries
         .sortedBy { it.badgesRequired }
         .firstOrNull { it.badgesRequired > currentRank.badgesRequired }
@@ -499,7 +498,7 @@ private fun JourneySummarySection(profile: ProfileJourney) {
     Surface(
         color = ParchmentLight,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.22f))
+        border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.22f))
     ) {
         Column(
             modifier = Modifier
@@ -573,7 +572,7 @@ private fun JourneySummarySection(profile: ProfileJourney) {
                     Surface(
                         color = if (selected) HeritageOchre else Parchment,
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, if (selected) HeritageOchre else RoyalIndigo.copy(alpha = 0.24f))
+                        border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = if (selected) 1f else 0.24f))
                     ) {
                         Text(
                             text = rank.title,
@@ -618,7 +617,7 @@ private fun StatCard(
         modifier = modifier,
         color = ParchmentLight,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.24f))
+        border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.24f))
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
@@ -963,7 +962,7 @@ private fun SectionCard(
     Surface(
         color = ParchmentLight,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.24f))
+        border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.24f))
     ) {
         Column(
             modifier = Modifier
@@ -1001,7 +1000,7 @@ private fun ProfileSetupRequired(
         Surface(
             color = RoyalIndigo,
             shape = RoundedCornerShape(8.dp),
-            border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.72f))
+            border = BorderStroke(1.dp, RoyalIndigo)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -1013,7 +1012,7 @@ private fun ProfileSetupRequired(
                         .size(76.dp)
                         .clip(CircleShape)
                         .background(ParchmentLight)
-                        .border(2.dp, HeritageOchre, CircleShape),
+                        .border(2.dp, RoyalIndigo, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1109,7 +1108,7 @@ private fun SignedOutProfile(
             modifier = Modifier.fillMaxWidth(),
             color = RoyalIndigo,
             shape = RoundedCornerShape(8.dp),
-            border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.7f))
+            border = BorderStroke(1.dp, RoyalIndigo)
         ) {
             Column(
                 modifier = Modifier.padding(22.dp),

@@ -2,8 +2,9 @@ package com.itihaasa.nammakathey.ui.auth
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -38,8 +38,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -52,7 +54,6 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.itihaasa.nammakathey.R
-import com.itihaasa.nammakathey.ui.theme.Charcoal
 import com.itihaasa.nammakathey.ui.theme.HeritageOchre
 import com.itihaasa.nammakathey.ui.theme.Parchment
 import com.itihaasa.nammakathey.ui.theme.ParchmentLight
@@ -109,33 +110,25 @@ fun AuthScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            HeritageSeal()
-            Spacer(modifier = Modifier.height(20.dp))
-            Text(
-                text = "Namma Kathey",
-                fontFamily = FontFamily.Serif,
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Bold,
-                color = RoyalIndigo
-            )
-            Text(
-                text = "Enter your heritage journey",
-                fontSize = 14.sp,
-                color = Charcoal.copy(alpha = 0.72f),
-                textAlign = TextAlign.Center
-            )
+            ItihaasaAuthLogo()
             Spacer(modifier = Modifier.height(24.dp))
 
+            val loginCardShape = RoundedCornerShape(12.dp)
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = loginCardShape,
+                        ambientColor = Color(0x1A000000),
+                        spotColor = Color(0x1A000000)
+                    ),
                 color = ParchmentLight,
-                shape = RoundedCornerShape(12.dp),
-                shadowElevation = 6.dp
+                shape = loginCardShape,
+                shadowElevation = 0.dp
             ) {
                 Column(
-                    modifier = Modifier
-                        .border(1.dp, HeritageOchre.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                        .padding(18.dp),
+                    modifier = Modifier.padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     AuthModeToggle(
@@ -176,8 +169,11 @@ fun AuthScreen(
                         onClick = { viewModel.submitEmail(onAuthComplete) },
                         enabled = !uiState.isLoading,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = RoyalIndigo),
-                        shape = RoundedCornerShape(8.dp)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = RoyalIndigo,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(if (uiState.isLoading) "Please wait..." else if (uiState.mode == AuthMode.SignUp) "Create Account" else "Sign In")
                     }
@@ -186,8 +182,19 @@ fun AuthScreen(
                         onClick = { googleSignInLauncher.launch(googleSignInClient.signInIntent) },
                         enabled = !uiState.isLoading,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.White,
+                            contentColor = RoyalIndigo
+                        ),
+                        border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.16f))
                     ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_google_g),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.size(10.dp))
                         Text("Continue with Google", color = RoyalIndigo)
                     }
                 }
@@ -197,20 +204,54 @@ fun AuthScreen(
 }
 
 @Composable
-private fun HeritageSeal() {
-    Box(
-        modifier = Modifier
-            .size(84.dp)
-            .background(RoyalIndigo, CircleShape)
-            .border(3.dp, HeritageOchre, CircleShape),
-        contentAlignment = Alignment.Center
+private fun ItihaasaAuthLogo() {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            "itihaasa".forEach { char ->
+                AuthLogoLetter(char)
+            }
+        }
         Text(
-            text = "NK",
+            text = "\u0CA8\u0CAE\u0CCD\u0CAE \u0C95\u0CA5\u0CC6",
             fontFamily = FontFamily.Serif,
-            fontSize = 28.sp,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            color = HeritageOchre.copy(alpha = 0.86f),
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun AuthLogoLetter(char: Char) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .height(10.dp)
+                .size(width = 19.dp, height = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (char == 'i') {
+                Box(
+                    modifier = Modifier
+                        .size(width = 7.dp, height = 9.dp)
+                        .background(HeritageOchre, RoundedCornerShape(999.dp))
+                )
+            }
+        }
+        Text(
+            text = if (char == 'i') "\u0131" else char.toString(),
+            fontFamily = FontFamily.Serif,
+            fontSize = 38.sp,
             fontWeight = FontWeight.Bold,
-            color = Parchment
+            color = RoyalIndigo
         )
     }
 }
@@ -223,7 +264,7 @@ private fun AuthModeToggle(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Parchment, RoundedCornerShape(8.dp))
+            .background(Color(0xFFF0E5CD), RoundedCornerShape(16.dp))
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -246,8 +287,8 @@ private fun AuthModeButton(
     TextButton(
         onClick = onClick,
         modifier = modifier.background(
-            if (selected) HeritageOchre else Color.Transparent,
-            RoundedCornerShape(7.dp)
+            if (selected) RoyalIndigo else Color(0xFFEADCC2),
+            RoundedCornerShape(12.dp)
         )
     ) {
         Text(
@@ -277,8 +318,8 @@ private fun AuthTextField(
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         visualTransformation = if (isPassword) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = HeritageOchre,
-            unfocusedBorderColor = RoyalIndigo.copy(alpha = 0.28f),
+            focusedBorderColor = RoyalIndigo.copy(alpha = 0.20f),
+            unfocusedBorderColor = RoyalIndigo.copy(alpha = 0.20f),
             focusedLabelColor = RoyalIndigo,
             cursorColor = HeritageOchre
         ),

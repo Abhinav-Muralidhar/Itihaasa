@@ -88,7 +88,7 @@ fun ProfileSetupScreen(
         Surface(
             color = RoyalIndigo,
             shape = RoundedCornerShape(8.dp),
-            border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.72f))
+            border = BorderStroke(1.dp, RoyalIndigo)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -210,7 +210,7 @@ private fun SetupPanel(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         color = ParchmentLight,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.34f))
+        border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.24f))
     ) {
         Column(
             modifier = Modifier
@@ -235,7 +235,7 @@ private fun DistrictChoice(
             .background(if (selected) RoyalIndigo.copy(alpha = 0.08f) else Parchment)
             .border(
                 width = 1.dp,
-                color = if (selected) HeritageOchre else RoyalIndigo.copy(alpha = 0.14f),
+                color = if (selected) RoyalIndigo else RoyalIndigo.copy(alpha = 0.18f),
                 shape = RoundedCornerShape(8.dp)
             )
             .clickable(onClick = onClick)
@@ -279,7 +279,7 @@ private fun LanguageChoice(
         modifier = modifier.clickable(onClick = onClick),
         color = if (selected) RoyalIndigo else Parchment,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, if (selected) RoyalIndigo else HeritageOchre.copy(alpha = 0.42f))
+        border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = if (selected) 1f else 0.32f))
     ) {
         Text(
             text = label,
@@ -293,8 +293,8 @@ private fun LanguageChoice(
 
 @Composable
 private fun setupFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = HeritageOchre,
-    unfocusedBorderColor = RoyalIndigo.copy(alpha = 0.28f),
+    focusedBorderColor = RoyalIndigo,
+    unfocusedBorderColor = RoyalIndigo.copy(alpha = 0.32f),
     focusedTextColor = Charcoal,
     unfocusedTextColor = Charcoal,
     cursorColor = HeritageOchre,

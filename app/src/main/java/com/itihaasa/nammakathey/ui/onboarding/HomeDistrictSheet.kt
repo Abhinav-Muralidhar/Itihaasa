@@ -4,20 +4,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -38,13 +39,14 @@ import com.itihaasa.nammakathey.ui.theme.Parchment
 import com.itihaasa.nammakathey.ui.theme.ParchmentLight
 import com.itihaasa.nammakathey.ui.theme.RoyalIndigo
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-@OptIn(ExperimentalLayoutApi::class)
 fun HomeDistrictSheet(
     onDistrictSelected: (String) -> Unit,
     onSkip: () -> Unit
 ) {
     var selectedDistrict by remember { mutableStateOf<String?>(null) }
+    var expanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -54,91 +56,126 @@ fun HomeDistrictSheet(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(28.dp))
-        Box(
-            modifier = Modifier
-                .size(72.dp)
-                .clip(CircleShape)
-                .background(Parchment),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "ಇ",
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Bold,
-                color = RoyalIndigo
-            )
-        }
+        OnboardingLogo()
+        Spacer(modifier = Modifier.height(18.dp))
         Text(
-            text = "itihaasa",
-            fontFamily = FontFamily.Serif,
-            fontSize = 36.sp,
-            fontWeight = FontWeight.Bold,
-            color = Parchment
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            text = "Where is your home?",
+            text = "Where should your story begin?",
             fontSize = 22.sp,
             fontWeight = FontWeight.SemiBold,
             color = Parchment,
             textAlign = TextAlign.Center
         )
         Text(
-            text = "Your heritage journey begins at home.",
+            text = "Choose any Karnataka district as your home base.",
             fontSize = 14.sp,
             color = HeritageOchre,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(18.dp))
-        FlowRow(
-            modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            maxItemsInEachRow = 3
+        Spacer(modifier = Modifier.height(24.dp))
+
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth()
         ) {
-            KarnatakaDistricts.forEach { district ->
-                val selected = district == selectedDistrict
-                FilterChip(
-                    selected = selected,
-                    onClick = { selectedDistrict = district },
-                    label = {
-                        Text(
-                            text = district,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center,
-                            fontSize = 12.sp
-                        )
-                    },
-                    shape = RoundedCornerShape(8.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = ParchmentLight,
-                        labelColor = RoyalIndigo,
-                        selectedContainerColor = HeritageOchre,
-                        selectedLabelColor = Parchment
-                    ),
-                    modifier = Modifier.weight(1f)
+            OutlinedTextField(
+                value = selectedDistrict.orEmpty(),
+                onValueChange = {},
+                readOnly = true,
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth(),
+                placeholder = { Text("Select district") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = ParchmentLight,
+                    unfocusedContainerColor = ParchmentLight,
+                    focusedBorderColor = HeritageOchre,
+                    unfocusedBorderColor = Parchment.copy(alpha = 0.68f),
+                    focusedTextColor = RoyalIndigo,
+                    unfocusedTextColor = RoyalIndigo,
+                    focusedPlaceholderColor = RoyalIndigo.copy(alpha = 0.55f),
+                    unfocusedPlaceholderColor = RoyalIndigo.copy(alpha = 0.55f)
                 )
-            }
-        }
-        selectedDistrict?.let { district ->
-            Button(
-                onClick = { onDistrictSelected(district) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = HeritageOchre,
-                    contentColor = Parchment
-                ),
-                shape = RoundedCornerShape(8.dp)
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.background(ParchmentLight)
             ) {
-                Text("Begin my journey")
+                KarnatakaDistricts.forEach { district ->
+                    DropdownMenuItem(
+                        text = { Text(district, color = RoyalIndigo) },
+                        onClick = {
+                            selectedDistrict = district
+                            expanded = false
+                        }
+                    )
+                }
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = { selectedDistrict?.let(onDistrictSelected) },
+            enabled = selectedDistrict != null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = HeritageOchre,
+                contentColor = Parchment,
+                disabledContainerColor = HeritageOchre.copy(alpha = 0.34f),
+                disabledContentColor = Parchment.copy(alpha = 0.72f)
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("Begin my journey")
+        }
+        Spacer(modifier = Modifier.weight(1f))
         TextButton(onClick = onSkip) {
             Text(
                 text = "Skip for now",
                 color = Parchment.copy(alpha = 0.5f)
             )
         }
+    }
+}
+
+@Composable
+private fun OnboardingLogo() {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(horizontalArrangement = Arrangement.Center) {
+            "itihaasa".forEach { char ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier.size(width = 18.dp, height = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (char == 'i') {
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 7.dp, height = 9.dp)
+                                    .background(HeritageOchre, RoundedCornerShape(999.dp))
+                            )
+                        }
+                    }
+                    Text(
+                        text = if (char == 'i') "\u0131" else char.toString(),
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Parchment
+                    )
+                }
+            }
+        }
+        Text(
+            text = "\u0CA8\u0CAE\u0CCD\u0CAE \u0C95\u0CA5\u0CC6",
+            fontFamily = FontFamily.Serif,
+            fontSize = 15.sp,
+            color = HeritageOchre,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
@@ -171,6 +208,7 @@ val KarnatakaDistricts = listOf(
     "Tumakuru",
     "Udupi",
     "Uttara Kannada",
+    "Vijayanagara",
     "Vijayapura",
     "Yadgir"
 )

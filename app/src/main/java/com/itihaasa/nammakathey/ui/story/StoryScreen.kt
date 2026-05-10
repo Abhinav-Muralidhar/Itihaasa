@@ -35,7 +35,12 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -61,6 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -262,34 +268,26 @@ class StoryScreenViewModel @Inject constructor(
         return districtHeroes.getOrNull(currentIndex + 1)
     }
 
-    fun nextDistrictAfter(hero: StoryCatalogEntry): String? {
-        val districtNames = districtDataSource.districts.map { it.name }
-        val currentIndex = districtNames.indexOf(hero.district)
-        if (currentIndex < 0) return null
-        return districtNames.getOrNull(currentIndex + 1)
+    fun unlockableDistricts(hero: StoryCatalogEntry): List<String> {
+        val unlocked = _uiState.value.unlockedDistricts
+        return districtDataSource.districts
+            .map { it.name }
+            .filter { district -> district != hero.district && district !in unlocked }
     }
 
-    fun unlockNextDistrict(onComplete: () -> Unit) {
+    fun unlockDistrict(districtName: String, onComplete: () -> Unit) {
+        if (districtName.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
-            val hero = _uiState.value.hero ?: return@launch
-            val nextDistrict = nextDistrictAfter(hero)
-
             _uiState.update { it.copy(isUnlocking = true) }
             runCatching {
-                if (nextDistrict != null) {
-                    storyProgressRepository.unlockDistrict(nextDistrict)
-                    storyProgressRepository.setActiveDistrict(nextDistrict)
-                }
+                storyProgressRepository.unlockDistrict(districtName)
+                storyProgressRepository.setActiveDistrict(districtName)
             }
             _uiState.update { state ->
                 state.copy(
                     isUnlocking = false,
-                    unlockedDistricts = if (nextDistrict != null) {
-                        state.unlockedDistricts + nextDistrict
-                    } else {
-                        state.unlockedDistricts
-                    },
-                    activeDistrict = nextDistrict ?: state.activeDistrict
+                    unlockedDistricts = state.unlockedDistricts + districtName,
+                    activeDistrict = districtName
                 )
             }
             withContext(Dispatchers.Main) {
@@ -431,10 +429,10 @@ fun StoryScreen(
                                 badgeEarned = uiState.badgeEarned,
                                 remainingCount = viewModel.remainingHeroesInDistrict(currentHero),
                                 nextHero = viewModel.nextHeroInDistrict(currentHero),
-                                nextDistrict = viewModel.nextDistrictAfter(currentHero),
+                                unlockableDistricts = viewModel.unlockableDistricts(currentHero),
                                 isUnlocking = uiState.isUnlocking,
-                                onUnlockNextDistrict = {
-                                    viewModel.unlockNextDistrict {
+                                onUnlockDistrict = { district ->
+                                    viewModel.unlockDistrict(district) {
                                         onNavigateBack()
                                     }
                                 },
@@ -587,7 +585,7 @@ private fun StoryTtsButton(
         color = if (isSpeaking) HeritageOchre else ParchmentLight.copy(alpha = 0.12f),
         contentColor = if (isSpeaking) RoyalIndigo else ParchmentLight,
         shape = RoundedCornerShape(999.dp),
-        border = BorderStroke(1.dp, if (isSpeaking) ParchmentLight else HeritageOchre.copy(alpha = 0.65f))
+        border = BorderStroke(1.dp, if (isSpeaking) RoyalIndigo else RoyalIndigo.copy(alpha = 0.65f))
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
@@ -631,7 +629,7 @@ fun SectionPage(
                 Surface(
                     color = ParchmentLight,
                     shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.28f)),
+                    border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.22f)),
                     shadowElevation = 3.dp
                 ) {
                     Column(
@@ -661,7 +659,7 @@ fun SectionPage(
                     Surface(
                         color = RoyalIndigo,
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.48f))
+                        border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.32f))
                     ) {
                         Text(
                             text = section.question.orEmpty(),
@@ -706,7 +704,7 @@ fun SectionPage(
                         Surface(
                             color = ParchmentLight,
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.28f)),
+                            border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.22f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
@@ -773,7 +771,7 @@ fun OptionButton(
     OutlinedButton(
         onClick = onClick,
         modifier = modifier,
-        border = BorderStroke(1.dp, HeritageOchre),
+        border = BorderStroke(1.dp, RoyalIndigo),
         shape = RoundedCornerShape(10.dp),
         colors = ButtonDefaults.outlinedButtonColors(
             contentColor = RoyalIndigo
@@ -828,7 +826,7 @@ fun QuizPage(
         Surface(
             color = RoyalIndigo,
             shape = RoundedCornerShape(8.dp),
-            border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.52f))
+            border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.32f))
         ) {
             Column(
                 modifier = Modifier
@@ -881,7 +879,7 @@ fun QuizPage(
         Surface(
             color = ParchmentLight,
             shape = RoundedCornerShape(8.dp),
-            border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.28f)),
+            border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.22f)),
             shadowElevation = 2.dp
         ) {
             Text(
@@ -960,14 +958,17 @@ fun BadgePage(
     badgeEarned: Boolean,
     remainingCount: Int,
     nextHero: StoryCatalogEntry?,
-    nextDistrict: String?,
+    unlockableDistricts: List<String>,
     isUnlocking: Boolean,
-    onUnlockNextDistrict: () -> Unit,
+    onUnlockDistrict: (String) -> Unit,
     onContinue: () -> Unit,
     onRetryQuiz: () -> Unit
 ) {
     if (badgeEarned) {
         var burstVisible by remember { mutableStateOf(false) }
+        var selectedDistrict by remember(hero.placeId, unlockableDistricts) {
+            mutableStateOf(unlockableDistricts.firstOrNull())
+        }
         LaunchedEffect(hero.placeId) {
             burstVisible = false
             delay(120)
@@ -1001,20 +1002,7 @@ fun BadgePage(
                         animationSpec = spring(dampingRatio = 0.42f, stiffness = 260f)
                     ) + fadeIn()
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(132.dp)
-                            .background(HeritageOchre.copy(alpha = 0.16f), CircleShape)
-                            .border(2.dp, HeritageOchre, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = hero.district.firstOrNull()?.uppercaseChar()?.toString() ?: "",
-                            fontSize = 54.sp,
-                            fontFamily = FontFamily.Serif,
-                            color = Parchment
-                        )
-                    }
+                    StoryBadgeMedallion(hero = hero)
                 }
             }
 
@@ -1045,7 +1033,7 @@ fun BadgePage(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = ParchmentLight.copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.48f)),
+                border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.32f)),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
@@ -1081,7 +1069,7 @@ fun BadgePage(
                 modifier = Modifier.fillMaxWidth(),
                 color = ParchmentLight,
                 shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.36f))
+                border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.26f))
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -1103,12 +1091,38 @@ fun BadgePage(
                     )
                     if (remainingCount == 0) {
                         Text(
-                            text = "District crest unlocked. " +
-                                (nextDistrict?.let { "Next district: $it" } ?: "No next district available."),
+                            text = if (unlockableDistricts.isEmpty()) {
+                                "District crest unlocked. Every available district is already open."
+                            } else {
+                                "District crest unlocked. Choose which district to open next."
+                            },
                             fontSize = 12.sp,
                             color = Charcoal,
                             lineHeight = 17.sp
                         )
+                        unlockableDistricts.forEach { district ->
+                            Surface(
+                                onClick = { selectedDistrict = district },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = if (selectedDistrict == district) {
+                                    RoyalIndigo.copy(alpha = 0.10f)
+                                } else {
+                                    Parchment
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (selectedDistrict == district) RoyalIndigo else RoyalIndigo.copy(alpha = 0.18f)
+                                )
+                            ) {
+                                Text(
+                                    text = district,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    color = RoyalIndigo,
+                                    fontWeight = if (selectedDistrict == district) FontWeight.Bold else FontWeight.Medium
+                                )
+                            }
+                        }
                     } else {
                         Text(
                             text = nextHero?.title?.let { "Next hero story: $it" }
@@ -1126,8 +1140,8 @@ fun BadgePage(
             Button(
                 onClick = {
                     if (remainingCount == 0) {
-                        if (nextDistrict != null) {
-                            onUnlockNextDistrict()
+                        if (selectedDistrict != null) {
+                            onUnlockDistrict(selectedDistrict.orEmpty())
                         } else {
                             onContinue()
                         }
@@ -1152,7 +1166,7 @@ fun BadgePage(
                 } else {
                     Text(
                         text = when (remainingCount) {
-                            0 -> if (nextDistrict != null) "Unlock next district ->" else "Back to map"
+                            0 -> if (selectedDistrict != null) "Unlock ${selectedDistrict.orEmpty()} ->" else "Back to map"
                             else -> "Continue to next story ->"
                         }
                     )
@@ -1206,6 +1220,72 @@ fun BadgePage(
 }
 
 @Composable
+private fun StoryBadgeMedallion(hero: StoryCatalogEntry) {
+    val accent = hero.badgeAccent()
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Surface(
+            modifier = Modifier
+                .size(132.dp)
+                .border(2.dp, accent.copy(alpha = 0.42f), CircleShape),
+            shape = CircleShape,
+            color = accent
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .size(92.dp)
+                        .clip(CircleShape)
+                        .background(ParchmentLight.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = hero.badgeIcon(),
+                        contentDescription = null,
+                        tint = ParchmentLight,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
+        }
+        Text(
+            text = hero.title,
+            color = ParchmentLight,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+private fun StoryCatalogEntry.badgeIcon(): ImageVector {
+    val source = "${title.lowercase(Locale.getDefault())} ${district.lowercase(Locale.getDefault())}"
+    return when {
+        listOf("temple", "mandir", "devasthana", "gudi").any(source::contains) -> Icons.Filled.CheckCircle
+        listOf("fort", "kote", "durga").any(source::contains) -> Icons.Filled.LocationOn
+        listOf("palace", "mahal").any(source::contains) -> Icons.Filled.EmojiEvents
+        listOf("cave", "gavi").any(source::contains) -> Icons.Filled.Map
+        listOf("river", "falls", "kere", "lake").any(source::contains) -> Icons.Filled.Star
+        else -> Icons.Filled.EmojiEvents
+    }
+}
+
+private fun StoryCatalogEntry.badgeAccent(): Color {
+    val source = "${title.lowercase(Locale.getDefault())} ${district.lowercase(Locale.getDefault())}"
+    return when {
+        listOf("temple", "mandir", "devasthana", "gudi").any(source::contains) -> Color(0xFF8C5A2B)
+        listOf("fort", "kote", "durga").any(source::contains) -> Color(0xFF2D5A3D)
+        listOf("palace", "mahal").any(source::contains) -> Color(0xFF2E2A5F)
+        listOf("cave", "gavi").any(source::contains) -> Color(0xFF4D5C7A)
+        listOf("river", "falls", "kere", "lake").any(source::contains) -> Color(0xFF206A83)
+        else -> Color(0xFF6B4A2E)
+    }
+}
+
+@Composable
 private fun CelebrationConfetti(
     visible: Boolean,
     modifier: Modifier = Modifier
@@ -1251,7 +1331,7 @@ private fun CelebrationConfetti(
                         scaleX = 0.6f + (progress * 0.6f)
                         scaleY = 0.6f + (progress * 0.6f)
                     }
-                    .clip(CircleShape)
+                    .clip(RoundedCornerShape(2.dp))
                     .background(piece.color)
             )
         }
@@ -1300,7 +1380,7 @@ fun DidYouKnowPage(
             Surface(
                 color = ParchmentLight,
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(0.5.dp, HeritageOchre.copy(alpha = 0.3f)),
+                border = BorderStroke(0.5.dp, RoyalIndigo.copy(alpha = 0.22f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 10.dp)
@@ -1330,7 +1410,7 @@ fun DidYouKnowPage(
             Surface(
                 color = ParchmentLight,
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(0.5.dp, HeritageOchre.copy(alpha = 0.3f)),
+                border = BorderStroke(0.5.dp, RoyalIndigo.copy(alpha = 0.22f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(

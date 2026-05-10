@@ -1,5 +1,6 @@
 package com.itihaasa.nammakathey.ui.profile
 
+import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.compose.material.icons.Icons
@@ -10,7 +11,9 @@ import androidx.compose.ui.graphics.Color
 import com.itihaasa.nammakathey.data.local.StoryCatalogDataSource
 import com.itihaasa.nammakathey.data.repository.ProfileRepository
 import com.itihaasa.nammakathey.data.repository.ProfileJourney
+import com.itihaasa.nammakathey.model.Badge
 import com.itihaasa.nammakathey.model.ExplorerRank
+import com.itihaasa.nammakathey.model.ExploredPlace
 import com.itihaasa.nammakathey.model.toExplorerRank
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -26,13 +29,21 @@ import java.util.Locale
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
-    private val storyCatalogDataSource: StoryCatalogDataSource
+    private val storyCatalogDataSource: StoryCatalogDataSource,
+    private val sharedPreferences: SharedPreferences
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
     private var profileJob: Job? = null
+    private var remoteProfile: ProfileJourney? = null
+    private val progressListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == KEY_COMPLETED_HERO_IDS || key?.startsWith(KEY_COMPLETED_HERO_EARNED_AT_PREFIX) == true) {
+            publishProfile(remoteProfile)
+        }
+    }
 
     init {
+        sharedPreferences.registerOnSharedPreferenceChangeListener(progressListener)
         observeProfile()
     }
 
@@ -49,18 +60,71 @@ class ProfileViewModel @Inject constructor(
                     }
                 }
                 .collect { profile ->
-                    val districtProgress = profile?.let(::buildDistrictProgress).orEmpty()
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            profile = profile,
-                            rewardCards = profile?.let(::buildRewardCards).orEmpty(),
-                            districtProgress = districtProgress,
-                            completedDistrictCount = districtProgress.values.count { it.isComplete },
-                            errorMessage = null
-                        )
-                    }
+                    remoteProfile = profile
+                    publishProfile(profile)
                 }
+        }
+    }
+
+    private fun publishProfile(profile: ProfileJourney?) {
+        val mergedProfile = profile?.withLocalProgressOverlay()
+        val districtProgress = mergedProfile?.let(::buildDistrictProgress).orEmpty()
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                profile = mergedProfile,
+                rewardCards = mergedProfile?.let(::buildRewardCards).orEmpty(),
+                districtProgress = districtProgress,
+                completedDistrictCount = districtProgress.values.count { progress -> progress.isComplete },
+                errorMessage = null
+            )
+        }
+    }
+
+    private fun ProfileJourney.withLocalProgressOverlay(): ProfileJourney {
+        val localBadges = localCompletedBadges()
+        if (localBadges.isEmpty()) return copy(explorerRank = badgesEarned.distinctBy { it.placeId }.size.toExplorerRank())
+
+        val existingBadgeIds = badgesEarned.map { it.placeId }.toSet()
+        val newLocalBadgeCount = localBadges.count { it.placeId !in existingBadgeIds }
+        val mergedBadges = (badgesEarned + localBadges)
+            .distinctBy { it.placeId }
+        val mergedCompletedHeroIds = completedHeroIds + localBadges.map { it.placeId }
+        val localPlaces = localBadges.map { badge ->
+            ExploredPlace(
+                placeId = badge.placeId,
+                name = badge.placeName,
+                timestamp = badge.earnedAt,
+                badgeEarned = true
+            )
+        }
+        return copy(
+            badgesEarned = mergedBadges,
+            placesExplored = (placesExplored + localPlaces).distinctBy { it.placeId },
+            completedHeroIds = mergedCompletedHeroIds,
+            quizStreak = quizStreak + newLocalBadgeCount,
+            explorerRank = mergedBadges.distinctBy { it.placeId }.size.toExplorerRank()
+        )
+    }
+
+    private fun localCompletedBadges(): List<Badge> {
+        val completedHeroIds = sharedPreferences
+            .getStringSet(KEY_COMPLETED_HERO_IDS, emptySet())
+            .orEmpty()
+        if (completedHeroIds.isEmpty()) return emptyList()
+
+        return completedHeroIds.mapNotNull { placeId ->
+            val hero = storyCatalogDataSource.getHeroByPlaceId(placeId) ?: return@mapNotNull null
+            Badge(
+                placeId = hero.placeId,
+                placeName = hero.title,
+                district = hero.district,
+                earnedAt = sharedPreferences.getLong(
+                    KEY_COMPLETED_HERO_EARNED_AT_PREFIX + hero.placeId,
+                    System.currentTimeMillis()
+                ),
+                badgeType = "hero"
+            )
         }
     }
 
@@ -101,6 +165,11 @@ class ProfileViewModel @Inject constructor(
             )
         }
         observeProfile()
+    }
+
+    override fun onCleared() {
+        sharedPreferences.unregisterOnSharedPreferenceChangeListener(progressListener)
+        super.onCleared()
     }
 
     private fun buildRewardCards(profile: ProfileJourney): List<RewardCardUiModel> {
@@ -210,6 +279,9 @@ class ProfileViewModel @Inject constructor(
         )
     }
 }
+
+private const val KEY_COMPLETED_HERO_IDS = "completed_hero_ids"
+private const val KEY_COMPLETED_HERO_EARNED_AT_PREFIX = "completed_hero_earned_at_"
 
 private data class DistrictRewardProgress(
     val completed: Int,

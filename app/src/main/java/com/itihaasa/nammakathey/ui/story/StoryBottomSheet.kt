@@ -126,7 +126,7 @@ fun StoryBottomSheet(
                         ),
                         border = SuggestionChipDefaults.suggestionChipBorder(
                             enabled = true,
-                            borderColor = HeritageOchre
+                            borderColor = RoyalIndigo
                         )
                     )
                     Text(text = place.era, fontSize = 12.sp, color = MidGray)

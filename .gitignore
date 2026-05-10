@@ -1,6 +1,7 @@
 *.iml
 .gradle
 .gradle-user-home/
+.gradle-home/
 .kotlin/
 /local.properties
 /.idea/caches
@@ -22,3 +23,12 @@ google-services.json
 *.pem
 *.key
 secrets.properties
+
+# Local notes / reports (do not commit)
+implementation.txt
+APP_AUDIT_REPORT.md
+
+# Stray local artifacts
+System.Drawing.Drawing2D.GraphicsPath
+a.nammakathey.model.Place
+a.nammakathey.ui.story

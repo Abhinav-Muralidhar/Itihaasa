@@ -48,7 +48,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
@@ -116,7 +115,7 @@ fun StoryTabScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp),
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.32f)),
+                        border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.28f)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
                         DistrictMap(
@@ -167,7 +166,7 @@ fun StoryTabScreen(
                     }
 
                     item {
-                        LinearProgressIndicator(c
+                        LinearProgressIndicator(
                             progress = { if (total > 0) done / total.toFloat() else 0f },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -196,7 +195,7 @@ fun StoryTabScreen(
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp),
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.22f)),
+                            border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.18f)),
                             color = ParchmentLight
                         ) {
                             Text(
@@ -237,7 +236,7 @@ private fun StoryModeHeader(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = RoyalIndigo),
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.64f))
+        border = BorderStroke(1.dp, RoyalIndigo)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -289,10 +288,6 @@ fun DistrictMap(
             6f
         )
     }
-    val bounds = LatLngBounds(
-        LatLng(11.5, 74.0),
-        LatLng(18.5, 78.6)
-    )
 
     LaunchedEffect(currentDistrict, districts) {
         val district = districts.firstOrNull { it.name == currentDistrict }
@@ -318,8 +313,7 @@ fun DistrictMap(
             rotationGesturesEnabled = false
         ),
         properties = MapProperties(
-            latLngBoundsForCameraTarget = bounds,
-            minZoomPreference = 6f,
+            minZoomPreference = 4.5f,
             maxZoomPreference = 12f,
             mapStyleOptions = MapStyleOptions(KARNATAKA_MAP_STYLE)
         )
@@ -479,7 +473,7 @@ fun StoryCard(
         ),
         shape = RoundedCornerShape(8.dp),
         border = if (isUnlocked) {
-            BorderStroke(1.dp, if (isCompleted) RoyalIndigo.copy(alpha = 0.28f) else HeritageOchre.copy(alpha = 0.46f))
+            BorderStroke(1.dp, RoyalIndigo.copy(alpha = if (isCompleted) 0.28f else 0.36f))
         } else {
             BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.10f))
         }

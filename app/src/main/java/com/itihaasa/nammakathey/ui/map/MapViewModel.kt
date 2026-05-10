@@ -1,6 +1,7 @@
 package com.itihaasa.nammakathey.ui.map
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
@@ -49,8 +50,14 @@ class MapViewModel @Inject constructor(
     private val preferences = context.getSharedPreferences(MAP_PREFERENCES, Context.MODE_PRIVATE)
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
+    private val progressListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == KEY_COMPLETED_HERO_IDS) {
+            applyLocalProgress()
+        }
+    }
 
     init {
+        preferences.registerOnSharedPreferenceChangeListener(progressListener)
         loadPlaces()
     }
 
@@ -139,12 +146,19 @@ class MapViewModel @Inject constructor(
             val homeDistrict = preferences.getString(KEY_HOME_DISTRICT, null)
             val homeDistrictSet = preferences.getBoolean(KEY_HOME_DISTRICT_SET, false)
             val signedInUser = firebaseAuth.currentUser?.takeUnless { it.isAnonymous }
+            val localExploredIds = getLocalCompletedHeroIds()
+            val localExploredDistricts = places
+                .filter { it.id in localExploredIds }
+                .map { it.district }
+                .toSet()
             _uiState.update {
                 it.copy(
                     allPlaces = places,
                     filteredPlaces = places,
                     isLoading = false,
                     todayInHistory = locationsDataSource.getTodayInHistory(),
+                    exploredPlaceIds = localExploredIds,
+                    exploredDistricts = localExploredDistricts,
                     homeDistrict = homeDistrict,
                     showHomeDistrictSheet = !homeDistrictSet && signedInUser == null
                 )
@@ -165,12 +179,18 @@ class MapViewModel @Inject constructor(
                     .orEmpty()
                 val exploredIds = badges.mapNotNull { it["placeId"] as? String }.toSet()
                 val exploredDistricts = badges.mapNotNull { it["district"] as? String }.toSet()
+                val localExploredIds = getLocalCompletedHeroIds()
                 val firestoreHomeDistrict = snapshot?.getString("homeDistrict")
                     ?.takeIf { it.isNotBlank() }
                 _uiState.update {
+                    val mergedExploredIds = it.exploredPlaceIds + exploredIds + localExploredIds
+                    val localExploredDistricts = it.allPlaces
+                        .filter { place -> place.id in mergedExploredIds }
+                        .map { place -> place.district }
+                        .toSet()
                     it.copy(
-                        exploredPlaceIds = exploredIds,
-                        exploredDistricts = exploredDistricts,
+                        exploredPlaceIds = mergedExploredIds,
+                        exploredDistricts = exploredDistricts + localExploredDistricts,
                         homeDistrict = firestoreHomeDistrict ?: it.homeDistrict,
                         showHomeDistrictSheet = when {
                             firestoreHomeDistrict != null -> false
@@ -187,6 +207,29 @@ class MapViewModel @Inject constructor(
                 }
                 updateUnlockedDistricts()
             }
+    }
+
+    private fun applyLocalProgress() {
+        val localExploredIds = getLocalCompletedHeroIds()
+        _uiState.update { state ->
+            val mergedExploredIds = state.exploredPlaceIds + localExploredIds
+            state.copy(
+                exploredPlaceIds = mergedExploredIds,
+                exploredDistricts = state.exploredDistricts + state.allPlaces
+                    .filter { it.id in mergedExploredIds }
+                    .map { it.district }
+                    .toSet()
+            )
+        }
+        updateUnlockedDistricts()
+    }
+
+    private fun getLocalCompletedHeroIds(): Set<String> =
+        preferences.getStringSet(KEY_COMPLETED_HERO_IDS, emptySet()).orEmpty()
+
+    override fun onCleared() {
+        preferences.unregisterOnSharedPreferenceChangeListener(progressListener)
+        super.onCleared()
     }
 
     private fun updateUnlockedDistricts() {
@@ -242,5 +285,6 @@ class MapViewModel @Inject constructor(
         const val MAP_PREFERENCES = "itihaasa_prefs"
         const val KEY_HOME_DISTRICT = "home_district"
         const val KEY_HOME_DISTRICT_SET = "home_district_set"
+        const val KEY_COMPLETED_HERO_IDS = "completed_hero_ids"
     }
 }

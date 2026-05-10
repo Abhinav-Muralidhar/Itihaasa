@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,6 +56,7 @@ import android.net.Uri
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.spring
 import com.itihaasa.nammakathey.ui.auth.AuthScreen
 import com.itihaasa.nammakathey.ui.map.MapScreen
@@ -89,13 +91,6 @@ fun NammaKatheyRoot() {
     val navController = rememberNavController()
     var showSplash by rememberSaveable { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) {
-        if (showSplash) {
-            delay(2200)
-            showSplash = false
-        }
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
         val backStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = backStackEntry?.destination?.route
@@ -105,108 +100,108 @@ fun NammaKatheyRoot() {
             Screen.Profile.route
         )
 
-        Scaffold(
-            bottomBar = {
-                if (showBottomBar) {
-                    AppBottomBar(
-                        currentRoute = currentRoute,
-                        onNavigate = { route ->
-                            navController.navigate(route) {
-                                popUpTo(Screen.Map.route) {
-                                    saveState = true
+        if (!showSplash) {
+            Scaffold(
+                bottomBar = {
+                    if (showBottomBar) {
+                        AppBottomBar(
+                            currentRoute = currentRoute,
+                            onNavigate = { route ->
+                                navController.navigate(route) {
+                                    popUpTo(Screen.Map.route) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
                             }
-                        }
-                    )
+                        )
+                    }
                 }
-            }
-        ) { innerPadding ->
-            NavHost(
-                navController = navController,
-                startDestination = Screen.Map.route,
-                modifier = Modifier.padding(innerPadding)
-            ) {
-                composable(Screen.Map.route) {
-                    MapScreen(
-                        onProfileClick = { navController.navigate(Screen.Profile.route) },
-                        onPlaceClick = { placeId -> navController.navigate(Screen.Story.route(placeId)) },
-                        onDistrictClick = { district -> navController.navigate(Screen.District.route(district)) }
-                    )
-                }
-                composable(Screen.Stories.route) {
-                    StoryTabScreen(
-                        onStoryClick = { placeId ->
-                            navController.navigate(Screen.Story.route(placeId))
-                        }
-                    )
-                }
-                composable(
-                    route = Screen.District.route,
-                    arguments = listOf(navArgument("district") { type = NavType.StringType })
-                ) { backStackEntry ->
-                    val district = Uri.decode(backStackEntry.arguments?.getString("district").orEmpty())
-                    DistrictScreen(
-                        district = district,
-                        onBackClick = { navController.popBackStack() },
-                        onPlaceClick = { placeId -> navController.navigate(Screen.Story.route(placeId)) }
-                    )
-                }
-                composable(Screen.Profile.route) {
-                    ProfileScreen(
-                        onBackClick = { navController.popBackStack() },
-                        onAuthClick = { navController.navigate(Screen.Auth.route) },
-                        onSetupClick = { navController.navigate(Screen.ProfileSetup.route) }
-                    )
-                }
-                composable(Screen.Auth.route) {
-                    AuthScreen(
-                        onBackClick = { navController.popBackStack() },
-                        onAuthComplete = { profileComplete ->
-                            val destination = if (profileComplete) {
-                                Screen.Profile.route
-                            } else {
-                                Screen.ProfileSetup.route
+            ) { innerPadding ->
+                NavHost(
+                    navController = navController,
+                    startDestination = Screen.Map.route,
+                    modifier = Modifier.padding(innerPadding)
+                ) {
+                    composable(Screen.Map.route) {
+                        MapScreen(
+                            onProfileClick = { navController.navigate(Screen.Profile.route) },
+                            onPlaceClick = { placeId -> navController.navigate(Screen.Story.route(placeId)) },
+                            onDistrictClick = { district -> navController.navigate(Screen.District.route(district)) }
+                        )
+                    }
+                    composable(Screen.Stories.route) {
+                        StoryTabScreen(
+                            onStoryClick = { placeId ->
+                                navController.navigate(Screen.Story.route(placeId))
                             }
-                            navController.navigate(destination) {
-                                popUpTo(Screen.Auth.route) {
-                                    inclusive = true
+                        )
+                    }
+                    composable(
+                        route = Screen.District.route,
+                        arguments = listOf(navArgument("district") { type = NavType.StringType })
+                    ) { backStackEntry ->
+                        val district = Uri.decode(backStackEntry.arguments?.getString("district").orEmpty())
+                        DistrictScreen(
+                            district = district,
+                            onBackClick = { navController.popBackStack() },
+                            onPlaceClick = { placeId -> navController.navigate(Screen.Story.route(placeId)) }
+                        )
+                    }
+                    composable(Screen.Profile.route) {
+                        ProfileScreen(
+                            onBackClick = { navController.popBackStack() },
+                            onAuthClick = { navController.navigate(Screen.Auth.route) },
+                            onSetupClick = { navController.navigate(Screen.ProfileSetup.route) }
+                        )
+                    }
+                    composable(Screen.Auth.route) {
+                        AuthScreen(
+                            onBackClick = { navController.popBackStack() },
+                            onAuthComplete = { profileComplete ->
+                                val destination = if (profileComplete) {
+                                    Screen.Profile.route
+                                } else {
+                                    Screen.ProfileSetup.route
                                 }
-                                launchSingleTop = true
-                            }
-                        }
-                    )
-                }
-                composable(Screen.ProfileSetup.route) {
-                    ProfileSetupScreen(
-                        onBackClick = { navController.popBackStack() },
-                        onSetupComplete = {
-                            navController.navigate(Screen.Stories.route) {
-                                popUpTo(Screen.ProfileSetup.route) {
-                                    inclusive = true
+                                navController.navigate(destination) {
+                                    popUpTo(Screen.Map.route) {
+                                        saveState = false
+                                    }
+                                    launchSingleTop = true
                                 }
-                                launchSingleTop = true
                             }
-                        }
-                    )
-                }
-                composable(
-                    route = Screen.Story.route,
-                    arguments = listOf(navArgument("placeId") { type = NavType.StringType })
-                ) { backStackEntry ->
-                    val placeId = backStackEntry.arguments?.getString("placeId").orEmpty()
-                    StoryScreen(
-                        placeId = placeId,
-                        onNavigateBack = { navController.popBackStack() }
-                    )
+                        )
+                    }
+                    composable(Screen.ProfileSetup.route) {
+                        ProfileSetupScreen(
+                            onBackClick = { navController.popBackStack() },
+                            onSetupComplete = {
+                                navController.navigate(Screen.Stories.route) {
+                                    popUpTo(Screen.ProfileSetup.route) {
+                                        inclusive = true
+                                    }
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
+                    }
+                    composable(
+                        route = Screen.Story.route,
+                        arguments = listOf(navArgument("placeId") { type = NavType.StringType })
+                    ) { backStackEntry ->
+                        val placeId = backStackEntry.arguments?.getString("placeId").orEmpty()
+                        StoryScreen(
+                            placeId = placeId,
+                            onNavigateBack = { navController.popBackStack() }
+                        )
+                    }
                 }
             }
         }
-        AnimatedVisibility(
-            visible = showSplash,
-            exit = fadeOut()
-        ) {
+
+        AnimatedVisibility(visible = showSplash, exit = fadeOut()) {
             StandardIntroScreen(onComplete = { showSplash = false })
         }
     }
@@ -217,54 +212,64 @@ private fun AppBottomBar(
     currentRoute: String?,
     onNavigate: (String) -> Unit
 ) {
-    NavigationBar(containerColor = ParchmentLight) {
+    val itemColors = NavigationBarItemDefaults.colors(
+        selectedIconColor = Color.White,
+        selectedTextColor = RoyalIndigo,
+        indicatorColor = HeritageOchre,
+        unselectedIconColor = RoyalIndigo.copy(alpha = 0.62f),
+        unselectedTextColor = RoyalIndigo.copy(alpha = 0.74f)
+    )
+    NavigationBar(
+        containerColor = ParchmentLight,
+        contentColor = RoyalIndigo,
+        tonalElevation = 2.dp
+    ) {
         NavigationBarItem(
             selected = currentRoute == Screen.Map.route,
             onClick = { onNavigate(Screen.Map.route) },
             icon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
-            label = { Text("Map") }
+            colors = itemColors
         )
         NavigationBarItem(
             selected = currentRoute == Screen.Stories.route,
             onClick = { onNavigate(Screen.Stories.route) },
             icon = { Icon(Icons.Default.List, contentDescription = null) },
-            label = { Text("Stories") }
+            colors = itemColors
         )
         NavigationBarItem(
             selected = currentRoute == Screen.Profile.route,
             onClick = { onNavigate(Screen.Profile.route) },
             icon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
-            label = { Text("Profile") }
+            colors = itemColors
         )
     }
 }
 
 @Composable
 private fun StandardIntroScreen(onComplete: () -> Unit) {
-    var wordVisible by rememberSaveable { mutableStateOf(false) }
-    var letterPhase by rememberSaveable { mutableStateOf(-1) }
-    val letterVariants = listOf("i", "t", "i", "h", "a", "a", "s", "a")
+    var wordVisible by rememberSaveable { mutableStateOf(true) }
+    var letterPhase by rememberSaveable { mutableStateOf(0) }
+    var taglineVisible by rememberSaveable { mutableStateOf(false) }
+    val letterVariants = "itihaasa".map { it.toString() }
     val transientVariants = listOf(
         "\u0C87",
-        "\u0924",
-        "\u0987",
-        "\u0C39",
-        "\u0A05",
-        "\u0B85",
-        "\u09B8",
-        "\u0C85"
+        "\u0BA4",
+        "\u0C07",
+        "\u0D39",
+        "\u0905",
+        "\u0985",
+        "\u0AB8",
+        "\u0B05"
     )
 
     LaunchedEffect(Unit) {
-        delay(180)
-        wordVisible = true
+        delay(360)
         repeat(letterVariants.size) { index ->
-            letterPhase = index
-            delay(130)
-            letterPhase = -1
-            delay(40)
+            letterPhase = index + 1
+            delay(210)
         }
-        delay(420)
+        taglineVisible = true
+        delay(950)
         onComplete()
     }
 
@@ -274,26 +279,39 @@ private fun StandardIntroScreen(onComplete: () -> Unit) {
             .background(Parchment),
         contentAlignment = Alignment.Center
     ) {
-        AnimatedVisibility(
-            visible = wordVisible,
-            enter = scaleIn(animationSpec = spring(dampingRatio = 0.72f)) + fadeIn()
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                letterVariants.forEachIndexed { index, char ->
-                    AnimatedContent(
-                        targetState = when {
-                            index < letterPhase -> char
-                            index == letterPhase -> transientVariants[index]
-                            else -> ""
-                        },
-                        label = "standard-intro-letter-$index"
-                    ) { value ->
-                        StandardLogoLetter(
-                            value = value,
-                            showDot = value.isNotBlank() && index == 0
-                        )
+            AnimatedVisibility(
+                visible = wordVisible,
+                enter = scaleIn(animationSpec = spring(dampingRatio = 0.72f)) + fadeIn()
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                    letterVariants.forEachIndexed { index, char ->
+                        AnimatedContent(
+                            targetState = if (index < letterPhase) char else transientVariants[index],
+                            transitionSpec = {
+                                (fadeIn() + scaleIn(animationSpec = spring(dampingRatio = 0.78f))) togetherWith fadeOut()
+                            },
+                            label = "standard-intro-letter-$index"
+                        ) { value ->
+                            StandardLogoLetter(
+                                value = value,
+                                showDot = char == "i"
+                            )
+                        }
                     }
                 }
+            }
+            AnimatedVisibility(visible = taglineVisible, enter = fadeIn()) {
+                Text(
+                    text = "\u0CA8\u0CAE\u0CCD\u0CAE \u0C95\u0CA5\u0CC6",
+                    fontSize = 18.sp,
+                    fontFamily = FontFamily.Serif,
+                    color = HeritageOchre,
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }
@@ -307,18 +325,18 @@ private fun StandardLogoLetter(
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
-                .height(10.dp)
+                .height(13.dp)
                 .width(22.dp),
             contentAlignment = Alignment.Center
         ) {
-            if (showDot) {
+            if (showDot && value == "i") {
                 FlameDot()
             }
         }
         Text(
-            text = value,
+            text = if (value == "i") "\u0131" else value,
             fontFamily = FontFamily.Serif,
-            fontSize = 46.sp,
+            fontSize = 48.sp,
             fontWeight = FontWeight.Bold,
             color = RoyalIndigo
         )

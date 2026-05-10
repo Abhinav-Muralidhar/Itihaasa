@@ -100,7 +100,7 @@ fun DistrictScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     color = ParchmentLight,
-                    border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.22f))
+                    border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.22f))
                 ) {
                     Text(
                         text = "No stories are available in this district yet.",
@@ -169,7 +169,8 @@ private fun TimelinePlaceCard(
                 .weight(1f)
                 .clickable(onClick = onClick),
             shape = RoundedCornerShape(8.dp),
-            color = if (locked) ParchmentLight.copy(alpha = 0.54f) else ParchmentLight
+            color = if (locked) ParchmentLight.copy(alpha = 0.54f) else ParchmentLight,
+            border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = if (locked) 0.12f else 0.22f))
         ) {
             Column(
                 modifier = Modifier.padding(14.dp),

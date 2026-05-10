@@ -66,6 +66,7 @@ import com.itihaasa.nammakathey.ui.onboarding.HomeDistrictSheet
 import com.itihaasa.nammakathey.ui.story.StoryBottomSheet
 import com.itihaasa.nammakathey.ui.theme.HeritageOchre
 import com.itihaasa.nammakathey.ui.theme.Parchment
+import com.itihaasa.nammakathey.ui.theme.ParchmentLight
 import com.itihaasa.nammakathey.ui.theme.RoyalIndigo
 
 private val KarnatakaCenter = LatLng(15.3173, 75.7139)
@@ -83,7 +84,7 @@ fun MapScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(KarnatakaCenter, 6.5f)
+        position = CameraPosition.fromLatLngZoom(KarnatakaCenter, 6f)
     }
 
     LaunchedEffect(uiState.cameraTarget) {
@@ -103,7 +104,9 @@ fun MapScreen(
             uiSettings = MapUiSettings(
                 zoomControlsEnabled = false,
                 myLocationButtonEnabled = false,
-                compassEnabled = true
+                compassEnabled = true,
+                scrollGesturesEnabled = true,
+                zoomGesturesEnabled = true
             ),
             properties = MapProperties(
                 latLngBoundsForCameraTarget = KarnatakaBounds,
@@ -205,12 +208,12 @@ private const val KARNATAKA_MAP_STYLE = """
   {
     "featureType": "administrative.province",
     "elementType": "geometry.stroke",
-    "stylers": [{"color": "#2E2A5F"}, {"weight": 2}]
+    "stylers": [{"color": "#C47D28"}, {"weight": 2.2}]
   },
   {
     "featureType": "administrative.country",
     "elementType": "geometry.stroke",
-    "stylers": [{"color": "#C47D28"}, {"weight": 1.5}]
+    "stylers": [{"color": "#B87422"}, {"weight": 1.6}]
   },
   {
     "featureType": "poi",
@@ -228,17 +231,17 @@ private const val KARNATAKA_MAP_STYLE = """
   {
     "featureType": "road",
     "elementType": "geometry",
-    "stylers": [{"color": "#EDE0C4"}, {"weight": 0.5}]
+    "stylers": [{"color": "#E6D2AE"}, {"weight": 0.55}]
   },
   {
     "featureType": "water",
     "elementType": "geometry",
-    "stylers": [{"color": "#C4DDE8"}]
+    "stylers": [{"color": "#BFD7E2"}]
   },
   {
     "featureType": "landscape",
     "elementType": "geometry",
-    "stylers": [{"color": "#F6EEDC"}]
+    "stylers": [{"color": "#F3E6C8"}]
   }
 ]
 """
@@ -259,10 +262,13 @@ private fun SearchField(
         },
         shape = RoundedCornerShape(24.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-            focusedBorderColor = MaterialTheme.colorScheme.secondary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
+            focusedContainerColor = ParchmentLight,
+            unfocusedContainerColor = ParchmentLight,
+            focusedBorderColor = HeritageOchre,
+            unfocusedBorderColor = HeritageOchre.copy(alpha = 0.38f),
+            focusedLeadingIconColor = HeritageOchre,
+            unfocusedLeadingIconColor = HeritageOchre.copy(alpha = 0.70f),
+            cursorColor = RoyalIndigo
         ),
         singleLine = true,
         maxLines = 1
@@ -300,8 +306,8 @@ private fun FilterChipsRow(
                 border = FilterChipDefaults.filterChipBorder(
                     enabled = true,
                     selected = activeFilters.contains(type),
-                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                    selectedBorderColor = MaterialTheme.colorScheme.secondary
+                    borderColor = RoyalIndigo.copy(alpha = 0.34f),
+                    selectedBorderColor = RoyalIndigo
                 )
             )
         }
