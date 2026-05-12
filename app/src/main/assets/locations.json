@@ -131,16 +131,6 @@
     "districtCentroidLat": 17.9104, "districtCentroidLng": 77.5199, "imageUrl": null, "districtId": "bidar"
   },
   {
-    "id": "bidar_mahmud_gawan",
-    "name": "Mahmud Gawan Madrasa",
-    "lat": 17.9150, "lng": 77.5310,
-    "type": "REFORM_SITE", "district": "Bidar", "stateId": "KA", "era": "1472",
-    "seedKeywords": ["Islamic university", "Persian architecture", "Mahmud Gawan", "medieval education"],
-    "historicalDate": null, "chronologicalOrder": 2,
-    "adjacentDistricts": ["Kalaburagi"],
-    "districtCentroidLat": 17.9104, "districtCentroidLng": 77.5199, "imageUrl": null, "districtId": "bidar"
-  },
-  {
     "id": "bidar_basavakalyan",
     "name": "Basavakalyan Fort",
     "lat": 17.8688, "lng": 76.9463,
@@ -362,16 +352,6 @@
     "districtCentroidLat": 13.0033, "districtCentroidLng": 76.1004, "imageUrl": null, "districtId": "hassan"
   },
   {
-    "id": "hassan_manjarabad",
-    "name": "Manjarabad Fort",
-    "lat": 12.8360, "lng": 75.7480,
-    "type": "FORT", "district": "Hassan", "stateId": "KA", "era": "1792",
-    "seedKeywords": ["Tipu Sultan", "Star shaped fort", "French architecture", "Sakleshpur"],
-    "historicalDate": null, "chronologicalOrder": 4,
-    "adjacentDistricts": ["Mysuru", "Mandya", "Tumakuru", "Chikkamagaluru", "Dakshina Kannada", "Kodagu"],
-    "districtCentroidLat": 13.0033, "districtCentroidLng": 76.1004, "imageUrl": null, "districtId": "hassan"
-  },
-  {
     "id": "haveri_kanakadasa",
     "name": "Kanakadasa Birthplace Bada",
     "lat": 14.9545, "lng": 75.1278,
@@ -398,16 +378,6 @@
     "type": "FORT", "district": "Kalaburagi", "stateId": "KA", "era": "14th century",
     "seedKeywords": ["Bahmani Sultanate", "Ala-ud-Din Bahman Shah", "Jama Masjid", "medieval Deccan"],
     "historicalDate": null, "chronologicalOrder": 1,
-    "adjacentDistricts": ["Bidar", "Yadgir", "Vijayapura"],
-    "districtCentroidLat": 17.3297, "districtCentroidLng": 76.8243, "imageUrl": null, "districtId": "kalaburagi"
-  },
-  {
-    "id": "kalaburagi_haft_gumbaz",
-    "name": "Haft Gumbaz",
-    "lat": 17.3230, "lng": 76.8520,
-    "type": "HERO_SITE", "district": "Kalaburagi", "stateId": "KA", "era": "14th century",
-    "seedKeywords": ["Bahmani tombs", "Islamic architecture", "Firoz Shah", "royal necropolis"],
-    "historicalDate": null, "chronologicalOrder": 2,
     "adjacentDistricts": ["Bidar", "Yadgir", "Vijayapura"],
     "districtCentroidLat": 17.3297, "districtCentroidLng": 76.8243, "imageUrl": null, "districtId": "kalaburagi"
   },
@@ -488,16 +458,6 @@
     "type": "FORT", "district": "Mandya", "stateId": "KA", "era": "1799",
     "seedKeywords": ["Tipu Sultan", "Battle of Seringapatam", "British East India Company", "Hyder Ali"],
     "historicalDate": "05-04", "chronologicalOrder": 1,
-    "adjacentDistricts": ["Mysuru", "Hassan", "Ramanagara", "Tumakuru", "Chamarajanagar"],
-    "districtCentroidLat": 12.5218, "districtCentroidLng": 76.8951, "imageUrl": null, "districtId": "mandya"
-  },
-  {
-    "id": "mandya_daria_daulat",
-    "name": "Daria Daulat Bagh",
-    "lat": 12.4167, "lng": 76.7000,
-    "type": "HERO_SITE", "district": "Mandya", "stateId": "KA", "era": "1784",
-    "seedKeywords": ["Tipu Sultan", "summer palace", "Battle of Pollilur murals", "teakwood architecture"],
-    "historicalDate": null, "chronologicalOrder": 2,
     "adjacentDistricts": ["Mysuru", "Hassan", "Ramanagara", "Tumakuru", "Chamarajanagar"],
     "districtCentroidLat": 12.5218, "districtCentroidLng": 76.8951, "imageUrl": null, "districtId": "mandya"
   },
@@ -703,16 +663,6 @@
     "memorialLat": 17.3279, "memorialLng": 76.8237, "memorialName": "Gol Gumbaz", "memorialType": "mausoleum", "districtId": "vijayapura"
   },
   {
-    "id": "vijayapura_ibrahim_rauza",
-    "name": "Ibrahim Rauza",
-    "lat": 17.3220, "lng": 76.8140,
-    "type": "HERO_SITE", "district": "Vijayapura", "stateId": "KA", "era": "1627",
-    "seedKeywords": ["Ibrahim Adil Shah II", "Taj Mahal of the South", "Islamic architecture", "twin buildings"],
-    "historicalDate": null, "chronologicalOrder": 2,
-    "adjacentDistricts": ["Bagalkot", "Belagavi", "Kalaburagi", "Yadgir"],
-    "districtCentroidLat": 16.8302, "districtCentroidLng": 75.7100, "imageUrl": null, "districtId": "vijayapura"
-  },
-  {
     "id": "vijayapura_basavanna",
     "name": "Basavanna Birthplace Bagewadi",
     "lat": 16.5833, "lng": 75.9667,
@@ -729,16 +679,6 @@
     "type": "FORT", "district": "Yadgir", "stateId": "KA", "era": "18th century",
     "seedKeywords": ["Venkatappa Nayaka", "Surapura Samsthana", "1857 mutiny", "Meadows Taylor"],
     "historicalDate": null, "chronologicalOrder": 1,
-    "adjacentDistricts": ["Kalaburagi", "Vijayapura", "Raichur"],
-    "districtCentroidLat": 16.7710, "districtCentroidLng": 77.1383, "imageUrl": null, "districtId": "yadgir"
-  },
-  {
-    "id": "yadgir_shahpur",
-    "name": "Shahpur Fort",
-    "lat": 16.6960, "lng": 76.8400,
-    "type": "FORT", "district": "Yadgir", "stateId": "KA", "era": "14th century",
-    "seedKeywords": ["Bahmani fortification", "Sleeping Buddha hill", "Adil Shahi garrison", "Deccan plateau"],
-    "historicalDate": null, "chronologicalOrder": 2,
     "adjacentDistricts": ["Kalaburagi", "Vijayapura", "Raichur"],
     "districtCentroidLat": 16.7710, "districtCentroidLng": 77.1383, "imageUrl": null, "districtId": "yadgir"
   },
@@ -771,16 +711,6 @@
       "historicalDate": null, "chronologicalOrder": 4,
       "adjacentDistricts": ["Bagalkot", "Dharwad", "Vijayapura", "Uttara Kannada"],
       "districtCentroidLat": 15.8497, "districtCentroidLng": 74.4977, "imageUrl": null, "districtId": "belagavi"
-    },
-    {
-      "id": "bengaluru_rural_tipu_birthplace",
-      "name": "Tipu Sultan Birthplace Memorial",
-      "lat": 13.2450, "lng": 77.7120,
-      "type": "HERO_SITE", "district": "Bengaluru Rural", "stateId": "KA", "era": "1750",
-      "seedKeywords": ["Tipu Sultan", "Tiger of Mysore", "Devanahalli", "Freedom struggle"],
-      "historicalDate": "11-20", "chronologicalOrder": 2,
-      "adjacentDistricts": ["Bengaluru Urban", "Chikkaballapur", "Ramanagara", "Tumakuru", "Kolar"],
-      "districtCentroidLat": 13.2257, "districtCentroidLng": 77.5673, "imageUrl": null, "districtId": "bengaluru_rural"
     },
     {
       "id": "chikkaballapur_visvesvaraya",

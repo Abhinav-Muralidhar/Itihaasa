@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,6 +36,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.LocationOn
@@ -60,6 +62,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +70,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -77,6 +81,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import coil.compose.AsyncImage
 import com.itihaasa.nammakathey.data.local.StoryCatalogDataSource
 import com.itihaasa.nammakathey.data.local.DistrictDataSource
 import com.itihaasa.nammakathey.data.repository.StoryProgressRepository
@@ -330,7 +335,8 @@ private const val KEY_HOME_DISTRICT = "home_district"
 fun StoryScreen(
     placeId: String,
     viewModel: StoryScreenViewModel = hiltViewModel(),
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onOpenNearMe: (String) -> Unit = {}
 ) {
     LaunchedEffect(placeId) { viewModel.loadStory(placeId) }
     val uiState by viewModel.uiState.collectAsState()
@@ -338,14 +344,18 @@ fun StoryScreen(
 
     val story = uiState.story
     val totalSections = story?.sections?.size ?: 0
-    val totalPages = if (story != null) totalSections + 3 else 1
+    val totalPages = if (story != null) totalSections + 4 else 1
     val pagerState = rememberPagerState(pageCount = { totalPages })
     val currentPage = pagerState.currentPage
     val textToRead = story?.let {
         when {
-            currentPage < totalSections -> it.sections[currentPage].text
-            currentPage == totalSections -> it.didYouKnow.joinToString(". ")
-            currentPage == totalSections + 1 -> it.quiz.getOrNull(uiState.quizAnswers.size)?.question.orEmpty()
+            currentPage == 0 -> listOfNotNull(
+                it.heroName.takeIf { name -> name.isNotBlank() },
+                it.significance.takeIf { s -> s.isNotBlank() }
+            ).joinToString(". ")
+            currentPage in 1..totalSections -> it.sections[currentPage - 1].text
+            currentPage == totalSections + 1 -> it.didYouKnow.joinToString(". ")
+            currentPage == totalSections + 2 -> it.quiz.getOrNull(uiState.quizAnswers.size)?.question.orEmpty()
             else -> uiState.hero?.title.orEmpty()
         }
     }.orEmpty()
@@ -396,22 +406,29 @@ fun StoryScreen(
                 ) { page ->
                     val currentHero = uiState.hero ?: return@HorizontalPager
                     when {
-                        page < totalSections ->
+                        page == 0 ->
+                            StoryCoverPage(
+                                story = story,
+                                hero = currentHero,
+                                onStart = { goToPage(1) },
+                                onNearby = { onOpenNearMe(currentHero.placeId) }
+                            )
+                        page in 1..totalSections ->
                             SectionPage(
-                                section = story.sections[page],
-                                choiceMade = uiState.sectionChoices[page],
-                                isLastSection = page == totalSections - 1,
+                                section = story.sections[page - 1],
+                                choiceMade = uiState.sectionChoices[page - 1],
+                                isLastSection = page == totalSections,
                                 onOptionSelected = { isA ->
-                                    viewModel.onOptionSelected(page, isA)
+                                    viewModel.onOptionSelected(page - 1, isA)
                                 },
                                 onContinue = { goToPage(page + 1) }
                             )
-                        page == totalSections ->
+                        page == totalSections + 1 ->
                             DidYouKnowPage(
                                 facts = story.didYouKnow,
                                 onContinue = { goToPage(page + 1) }
                             )
-                        page == totalSections + 1 ->
+                        page == totalSections + 2 ->
                             QuizPage(
                                 quiz = story.quiz,
                                 quizAnswers = uiState.quizAnswers,
@@ -423,7 +440,7 @@ fun StoryScreen(
                                     goToPage(page + 1)
                                 }
                             )
-                        page == totalSections + 2 ->
+                        page == totalSections + 3 ->
                             BadgePage(
                                 hero = currentHero,
                                 badgeEarned = uiState.badgeEarned,
@@ -439,15 +456,171 @@ fun StoryScreen(
                                 onContinue = onNavigateBack,
                                 onRetryQuiz = {
                                     viewModel.onRetryQuiz()
-                                    goToPage(totalSections + 1)
+                                    goToPage(totalSections + 2)
                                 }
                             )
                         else ->
-                            DidYouKnowPage(
-                                facts = story.didYouKnow,
-                                onContinue = { goToPage(totalSections + 1) }
+                            StoryCoverPage(
+                                story = story,
+                                hero = currentHero,
+                                onStart = { goToPage(1) },
+                                onNearby = { onOpenNearMe(currentHero.placeId) }
                             )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StoryCoverPage(
+    story: Story,
+    hero: StoryCatalogEntry,
+    onStart: () -> Unit,
+    onNearby: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Parchment)
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = ParchmentLight,
+            border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.18f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            if (!story.imageUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = story.imageUrl,
+                    contentDescription = "${hero.title} cover",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(210.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(210.dp)
+                        .background(RoyalIndigo.copy(alpha = 0.08f))
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = null,
+                        tint = RoyalIndigo.copy(alpha = 0.65f),
+                        modifier = Modifier.size(34.dp)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "Cover image coming soon",
+                        fontSize = 13.sp,
+                        color = Charcoal.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+
+        Text(
+            text = hero.title,
+            fontSize = 28.sp,
+            fontFamily = FontFamily.Serif,
+            fontWeight = FontWeight.Bold,
+            color = RoyalIndigo
+        )
+
+        if (story.era.isNotBlank()) {
+            Text(
+                text = story.era,
+                fontSize = 13.sp,
+                color = HeritageOchre,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        if (story.significance.isNotBlank()) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = ParchmentLight,
+                border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.18f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = story.significance,
+                    modifier = Modifier.padding(14.dp),
+                    fontSize = 14.sp,
+                    color = Charcoal,
+                    lineHeight = 21.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                onClick = onNearby,
+                shape = RoundedCornerShape(999.dp),
+                color = Parchment,
+                border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.25f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = "Nearby Places",
+                        tint = RoyalIndigo,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "Nearby Places",
+                        fontSize = 13.sp,
+                        color = RoyalIndigo,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            Surface(
+                onClick = onStart,
+                color = HeritageOchre,
+                shape = RoundedCornerShape(999.dp),
+                shadowElevation = 8.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Start",
+                        fontSize = 13.sp,
+                        color = Parchment,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = "Start story",
+                        tint = Parchment,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }
@@ -615,14 +788,14 @@ fun SectionPage(
     onOptionSelected: (Boolean) -> Unit,
     onContinue: () -> Unit
 ) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(RoyalIndigo.copy(alpha = 0.06f))
     ) {
         LazyColumn(
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(20.dp),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
@@ -729,32 +902,25 @@ fun SectionPage(
             }
         }
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shadowElevation = 4.dp,
-            color = ParchmentLight
+        val canContinue = !section.hasQuestion || isLastSection || choiceMade != null
+        AnimatedVisibility(
+            visible = canContinue,
+            enter = fadeIn(tween(160)) + scaleIn(animationSpec = spring(stiffness = 650f)),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(end = 16.dp, bottom = 16.dp)
         ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                horizontalArrangement = Arrangement.End
+            Surface(
+                color = HeritageOchre,
+                shape = RoundedCornerShape(18.dp),
+                shadowElevation = 10.dp
             ) {
-                val canContinue = !section.hasQuestion ||
-                    isLastSection ||
-                    choiceMade != null
-
-                Button(
-                    onClick = onContinue,
-                    enabled = canContinue,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = HeritageOchre,
-                        disabledContainerColor = HeritageOchre.copy(alpha = 0.4f)
-                    ),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text(
-                        text = if (isLastSection) "Next" else "Continue",
-                        fontSize = 14.sp,
-                        color = Parchment
+                IconButton(onClick = onContinue, modifier = Modifier.size(52.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = if (isLastSection) "Next" else "Continue",
+                        tint = Parchment
                     )
                 }
             }
@@ -805,7 +971,11 @@ fun QuizPage(
         return
     }
 
-    val currentIndex = quizAnswers.size.coerceAtMost(quiz.size - 1)
+    var revealingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var revealingAnswer by rememberSaveable { mutableStateOf<String?>(null) }
+    val isRevealing = revealingIndex != null
+
+    val currentIndex = (revealingIndex ?: quizAnswers.size).coerceAtMost(quiz.size - 1)
     val isComplete = quizAnswers.size == quiz.size
 
     LaunchedEffect(isComplete) {
@@ -873,7 +1043,7 @@ fun QuizPage(
         Spacer(modifier = Modifier.height(24.dp))
 
         val question = quiz[currentIndex]
-        val selectedAnswer = quizAnswers[currentIndex]
+        val selectedAnswer = revealingAnswer ?: quizAnswers[currentIndex]
         val isAnswered = selectedAnswer != null
 
         Surface(
@@ -912,7 +1082,12 @@ fun QuizPage(
             }
 
             Surface(
-                onClick = { if (!isAnswered) onAnswerSelected(currentIndex, option) },
+                onClick = {
+                    if (!isAnswered && !isRevealing) {
+                        revealingIndex = currentIndex
+                        revealingAnswer = option
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
@@ -940,6 +1115,17 @@ fun QuizPage(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+
+        LaunchedEffect(revealingIndex, revealingAnswer) {
+            val index = revealingIndex
+            val answer = revealingAnswer
+            if (index != null && answer != null) {
+                delay(750)
+                onAnswerSelected(index, answer)
+                revealingIndex = null
+                revealingAnswer = null
+            }
+        }
 
         if (isComplete) {
             Text(

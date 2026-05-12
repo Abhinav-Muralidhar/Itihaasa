@@ -37,8 +37,10 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -250,7 +252,7 @@ private fun StoryModeHeader(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = homeDistrict?.let { "$it Chronicle" } ?: "Karnataka Chronicle",
+                text = "Karnataka Chronicle",
                 fontSize = 24.sp,
                 fontFamily = FontFamily.Serif,
                 color = ParchmentLight,
@@ -478,75 +480,104 @@ fun StoryCard(
             BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.10f))
         }
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(
-                        when {
-                            isCompleted -> Color(0xFF27AE60)
-                            isUnlocked -> HeritageOchre
-                            else -> RoyalIndigo.copy(alpha = 0.15f)
-                        },
-                        CircleShape
-                    ),
-                contentAlignment = Alignment.Center
+        Box {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                if (isCompleted) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                } else if (!isUnlocked) {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = RoyalIndigo.copy(alpha = 0.5f),
-                        modifier = Modifier.size(16.dp)
-                    )
-                } else {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(
+                            when {
+                                isUnlocked -> HeritageOchre
+                                else -> RoyalIndigo.copy(alpha = 0.15f)
+                            },
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isCompleted) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    } else if (!isUnlocked) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = RoyalIndigo.copy(alpha = 0.5f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    } else {
+                        Text(
+                            text = "$index",
+                            fontSize = 16.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "$index",
-                        fontSize = 16.sp,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
+                        text = hero.title,
+                        fontSize = 17.sp,
+                        fontFamily = FontFamily.Serif,
+                        color = if (isUnlocked) RoyalIndigo else Charcoal.copy(alpha = 0.58f),
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = if (isCompleted) "Completed" else if (isUnlocked) "Chronology ${hero.chronologicalOrder}" else "Locked",
+                        fontSize = 12.sp,
+                        color = if (isUnlocked) HeritageOchre else Charcoal.copy(alpha = 0.3f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                if (isUnlocked && !isCompleted) {
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = HeritageOchre,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = hero.title,
-                    fontSize = 17.sp,
-                    fontFamily = FontFamily.Serif,
-                    color = if (isUnlocked) RoyalIndigo else Charcoal.copy(alpha = 0.58f),
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = if (isCompleted) "Completed" else if (isUnlocked) "Chronology ${hero.chronologicalOrder}" else "Locked",
-                    fontSize = 12.sp,
-                    color = if (isUnlocked) HeritageOchre else Charcoal.copy(alpha = 0.3f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            if (isUnlocked && !isCompleted) {
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = HeritageOchre,
-                    modifier = Modifier.size(20.dp)
+            if (isCompleted) {
+                CompletedStamp(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 10.dp, end = 10.dp)
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun CompletedStamp(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.graphicsLayer { rotationZ = -12f },
+        shape = RoundedCornerShape(8.dp),
+        color = Color.Transparent,
+        border = BorderStroke(1.5.dp, Color(0xFF27AE60).copy(alpha = 0.85f))
+    ) {
+        Text(
+            text = "COMPLETED",
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Black,
+            color = Color(0xFF27AE60).copy(alpha = 0.9f),
+            letterSpacing = 1.5.sp,
+            textAlign = TextAlign.Center
+        )
     }
 }

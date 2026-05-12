@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -60,6 +61,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.spring
 import com.itihaasa.nammakathey.ui.auth.AuthScreen
 import com.itihaasa.nammakathey.ui.map.MapScreen
+import com.itihaasa.nammakathey.ui.nearme.NearMeScreen
 import com.itihaasa.nammakathey.ui.profile.ProfileScreen
 import com.itihaasa.nammakathey.ui.profile.ProfileSetupScreen
 import com.itihaasa.nammakathey.ui.story.StoryScreen
@@ -75,6 +77,10 @@ import kotlinx.coroutines.delay
 sealed class Screen(val route: String) {
     data object Map : Screen("map")
     data object Stories : Screen("stories")
+    data object NearMe : Screen("near_me?placeId={placeId}") {
+        fun route(placeId: String? = null): String =
+            if (placeId.isNullOrBlank()) "near_me?placeId=" else "near_me?placeId=$placeId"
+    }
     data object Profile : Screen("profile")
     data object Auth : Screen("auth")
     data object ProfileSetup : Screen("profile_setup")
@@ -97,6 +103,7 @@ fun NammaKatheyRoot() {
         val showBottomBar = currentRoute in setOf(
             Screen.Map.route,
             Screen.Stories.route,
+            Screen.NearMe.route,
             Screen.Profile.route
         )
 
@@ -136,6 +143,22 @@ fun NammaKatheyRoot() {
                             onStoryClick = { placeId ->
                                 navController.navigate(Screen.Story.route(placeId))
                             }
+                        )
+                    }
+                    composable(
+                        route = Screen.NearMe.route,
+                        arguments = listOf(
+                            navArgument("placeId") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            }
+                        )
+                    ) { backStackEntry ->
+                        val placeId = backStackEntry.arguments?.getString("placeId")
+                        NearMeScreen(
+                            heroPlaceId = placeId,
+                            onOpenStory = { id -> navController.navigate(Screen.Story.route(id)) }
                         )
                     }
                     composable(
@@ -194,7 +217,10 @@ fun NammaKatheyRoot() {
                         val placeId = backStackEntry.arguments?.getString("placeId").orEmpty()
                         StoryScreen(
                             placeId = placeId,
-                            onNavigateBack = { navController.popBackStack() }
+                            onNavigateBack = { navController.popBackStack() },
+                            onOpenNearMe = { heroPlaceId ->
+                                navController.navigate(Screen.NearMe.route(heroPlaceId))
+                            }
                         )
                     }
                 }
@@ -234,6 +260,12 @@ private fun AppBottomBar(
             selected = currentRoute == Screen.Stories.route,
             onClick = { onNavigate(Screen.Stories.route) },
             icon = { Icon(Icons.Default.List, contentDescription = null) },
+            colors = itemColors
+        )
+        NavigationBarItem(
+            selected = currentRoute == Screen.NearMe.route,
+            onClick = { onNavigate(Screen.NearMe.route()) },
+            icon = { Icon(Icons.Default.MyLocation, contentDescription = null) },
             colors = itemColors
         )
         NavigationBarItem(

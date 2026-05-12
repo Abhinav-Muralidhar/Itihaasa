@@ -185,7 +185,6 @@ private fun ProfileContent(
         DistrictProgressSection(profile, districtProgress)
         BadgeCollectionPreviewSection(profile.badgesEarned)
         BadgeCollectionSection(profile.badgesEarned)
-        ExploredPlacesSection(profile.placesExplored)
         if (onSignOutClick != null) {
             OutlinedButton(
                 onClick = onSignOutClick,
@@ -938,21 +937,6 @@ private fun Badge.badgeAccent(): Color {
     }
 }
 
-@Composable
-private fun ExploredPlacesSection(places: List<ExploredPlace>) {
-    SectionCard(title = "Explored Places") {
-        if (places.isEmpty()) {
-            EmptyText("Open a place story and complete a quiz to build your journey.")
-        } else {
-            places.sortedByDescending { it.timestamp }.forEach { place ->
-                InfoRow(
-                    label = place.name.ifBlank { place.placeId },
-                    value = if (place.badgeEarned) "Badge earned" else place.timestamp.formatDate()
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun SectionCard(
