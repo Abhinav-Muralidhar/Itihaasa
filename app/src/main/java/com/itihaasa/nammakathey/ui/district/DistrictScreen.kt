@@ -191,7 +191,7 @@ private fun TimelinePlaceCard(
                         color = RoyalIndigo
                     )
                     Text(
-                        text = place.seedKeywords.take(3).joinToString(" Â· "),
+                        text = place.seedKeywords.take(3).joinToString(" - "),
                         fontSize = 13.sp,
                         color = Charcoal,
                         maxLines = 2,
@@ -239,4 +239,3 @@ private fun CompletedStamp(modifier: Modifier = Modifier) {
         )
     }
 }
-

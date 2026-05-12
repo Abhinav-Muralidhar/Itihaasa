@@ -6,9 +6,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import com.google.android.gms.maps.model.LatLng
 import com.itihaasa.nammakathey.data.local.LocationsDataSource
+import com.itihaasa.nammakathey.data.repository.StoryRepository
 import com.itihaasa.nammakathey.model.Place
 import com.itihaasa.nammakathey.model.PlaceType
 import com.itihaasa.nammakathey.model.Story
@@ -43,6 +45,7 @@ data class MapUiState(
 @HiltViewModel
 class MapViewModel @Inject constructor(
     private val locationsDataSource: LocationsDataSource,
+    private val storyRepository: StoryRepository,
     private val firebaseAuth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
     @ApplicationContext context: Context
@@ -50,6 +53,7 @@ class MapViewModel @Inject constructor(
     private val preferences = context.getSharedPreferences(MAP_PREFERENCES, Context.MODE_PRIVATE)
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
+    private var progressRegistration: ListenerRegistration? = null
     private val progressListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == KEY_COMPLETED_HERO_IDS) {
             applyLocalProgress()
@@ -93,11 +97,7 @@ class MapViewModel @Inject constructor(
         _uiState.update { it.copy(selectedPlace = place, cachedStory = null) }
         viewModelScope.launch(Dispatchers.IO) {
             val cached = runCatching {
-                firestore.collection("places")
-                    .document("${place.stateId}_${place.id}_en")
-                    .get()
-                    .await()
-                    .toObject(Story::class.java)
+                storyRepository.getStory(place.id, "en")
             }.getOrNull()
             _uiState.update { state ->
                 if (state.selectedPlace?.id == place.id) {
@@ -171,7 +171,8 @@ class MapViewModel @Inject constructor(
     private fun observeUserProgress() {
         val user = firebaseAuth.currentUser ?: return
         if (user.isAnonymous) return
-        firestore.collection("users")
+        progressRegistration?.remove()
+        progressRegistration = firestore.collection("users")
             .document(user.uid)
             .addSnapshotListener { snapshot, _ ->
                 val badges = (snapshot?.get("badgesEarned") as? List<*>)
@@ -228,6 +229,7 @@ class MapViewModel @Inject constructor(
         preferences.getStringSet(KEY_COMPLETED_HERO_IDS, emptySet()).orEmpty()
 
     override fun onCleared() {
+        progressRegistration?.remove()
         preferences.unregisterOnSharedPreferenceChangeListener(progressListener)
         super.onCleared()
     }

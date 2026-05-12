@@ -12,9 +12,8 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Preserve line numbers for Crashlytics stack traces.
+-keepattributes SourceFile,LineNumberTable,Signature,*Annotation*
 
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
@@ -28,14 +27,8 @@
 -keep class com.google.firebase.** { *; }
 -dontwarn com.google.firebase.**
 
-# Retrofit / Gson
--keep class retrofit2.** { *; }
--keep class okhttp3.** { *; }
--keepattributes Signature
--keepattributes *Annotation*
-
-# Gson model classes (important)
--keep class com.itihaasa.nammakathey.** { *; }
+# Gson
+-keep class com.itihaasa.nammakathey.model.** { *; }
 
 # Coroutines
 -dontwarn kotlinx.coroutines.**
@@ -43,6 +36,3 @@
 # Google Maps
 -keep class com.google.android.gms.maps.** { *; }
 -dontwarn com.google.android.gms.**
-
-# Keep BuildConfig
--keep class **.BuildConfig { *; }

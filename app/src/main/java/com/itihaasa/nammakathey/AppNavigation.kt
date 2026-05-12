@@ -79,7 +79,7 @@ sealed class Screen(val route: String) {
     data object Stories : Screen("stories")
     data object NearMe : Screen("near_me?placeId={placeId}") {
         fun route(placeId: String? = null): String =
-            if (placeId.isNullOrBlank()) "near_me?placeId=" else "near_me?placeId=$placeId"
+            if (placeId.isNullOrBlank()) "near_me?placeId=" else "near_me?placeId=${Uri.encode(placeId)}"
     }
     data object Profile : Screen("profile")
     data object Auth : Screen("auth")
@@ -133,9 +133,7 @@ fun NammaKatheyRoot() {
                 ) {
                     composable(Screen.Map.route) {
                         MapScreen(
-                            onProfileClick = { navController.navigate(Screen.Profile.route) },
-                            onPlaceClick = { placeId -> navController.navigate(Screen.Story.route(placeId)) },
-                            onDistrictClick = { district -> navController.navigate(Screen.District.route(district)) }
+                            onPlaceClick = { placeId -> navController.navigate(Screen.Story.route(placeId)) }
                         )
                     }
                     composable(Screen.Stories.route) {
@@ -155,7 +153,7 @@ fun NammaKatheyRoot() {
                             }
                         )
                     ) { backStackEntry ->
-                        val placeId = backStackEntry.arguments?.getString("placeId")
+                        val placeId = backStackEntry.arguments?.getString("placeId")?.let(Uri::decode)
                         NearMeScreen(
                             heroPlaceId = placeId,
                             onOpenStory = { id -> navController.navigate(Screen.Story.route(id)) }

@@ -20,22 +20,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -65,7 +61,6 @@ import com.itihaasa.nammakathey.utils.pinColorForType
 import com.itihaasa.nammakathey.ui.onboarding.HomeDistrictSheet
 import com.itihaasa.nammakathey.ui.story.StoryBottomSheet
 import com.itihaasa.nammakathey.ui.theme.HeritageOchre
-import com.itihaasa.nammakathey.ui.theme.Parchment
 import com.itihaasa.nammakathey.ui.theme.ParchmentLight
 import com.itihaasa.nammakathey.ui.theme.RoyalIndigo
 
@@ -78,9 +73,7 @@ private val KarnatakaBounds = LatLngBounds(
 @Composable
 fun MapScreen(
     viewModel: MapViewModel = hiltViewModel(),
-    onProfileClick: () -> Unit = {},
-    onPlaceClick: (String) -> Unit = {},
-    onDistrictClick: (String) -> Unit = {}
+    onPlaceClick: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val cameraPositionState = rememberCameraPositionState {
@@ -202,7 +195,6 @@ fun MapScreen(
         }
     }
 }
-
 private const val KARNATAKA_MAP_STYLE = """
 [
   {
@@ -346,7 +338,6 @@ private fun PlaceMarker(
         )
     }
 }
-
 @Composable
 private fun ClusterMarker(cluster: Cluster<Place>) {
     Surface(
@@ -397,43 +388,6 @@ private fun TodayInHistoryBanner(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-    }
-}
-
-@Composable
-private fun PlaceDetailsCard(
-    place: Place,
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(14.dp)
-                    .background(pinColorForType(place.type), CircleShape)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(place.name, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text = "${place.district} - ${place.era}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Close, contentDescription = "Close")
-            }
         }
     }
 }

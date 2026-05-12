@@ -2,9 +2,11 @@ package com.itihaasa.nammakathey.ui.nearme
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -69,6 +71,15 @@ fun NearMeScreen(
 
     LaunchedEffect(heroPlaceId) {
         viewModel.setHero(heroPlaceId)
+    }
+
+    LaunchedEffect(Unit) {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        viewModel.setPermissionGranted(granted)
+        if (granted) viewModel.refresh()
     }
 
     Box(
@@ -273,4 +284,3 @@ fun NearMeScreen(
         }
     }
 }
-

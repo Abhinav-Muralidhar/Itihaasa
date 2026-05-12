@@ -4,71 +4,16 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.gson.Gson
-import com.itihaasa.nammakathey.data.local.DistrictDataSource
-import com.itihaasa.nammakathey.data.remote.GeminiApiService
-import com.itihaasa.nammakathey.data.remote.WikipediaApiService
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import java.util.concurrent.TimeUnit
-import javax.inject.Qualifier
 import javax.inject.Singleton
-import okhttp3.OkHttpClient
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-
-@Qualifier
-@Retention(AnnotationRetention.BINARY)
-annotation class GeminiRetrofit
-
-@Qualifier
-@Retention(AnnotationRetention.BINARY)
-annotation class WikipediaRetrofit
 
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
-    @Provides
-    @Singleton
-    fun provideGson(): Gson = Gson()
-
-    @Provides
-    @Singleton
-    @GeminiRetrofit
-    fun provideGeminiRetrofit(gson: Gson): Retrofit {
-        return Retrofit.Builder()
-            .baseUrl("https://generativelanguage.googleapis.com/v1beta/")
-            .client(geminiHttpClient())
-            .addConverterFactory(GsonConverterFactory.create(gson))
-            .build()
-    }
-
-    @Provides
-    @Singleton
-    @WikipediaRetrofit
-    fun provideWikipediaRetrofit(gson: Gson): Retrofit {
-        return Retrofit.Builder()
-            .baseUrl("https://en.wikipedia.org/")
-            .client(wikipediaHttpClient())
-            .addConverterFactory(GsonConverterFactory.create(gson))
-            .build()
-    }
-
-    @Provides
-    @Singleton
-    fun provideGeminiApiService(
-        @GeminiRetrofit retrofit: Retrofit
-    ): GeminiApiService = retrofit.create(GeminiApiService::class.java)
-
-    @Provides
-    @Singleton
-    fun provideWikipediaApiService(
-        @WikipediaRetrofit retrofit: Retrofit
-    ): WikipediaApiService = retrofit.create(WikipediaApiService::class.java)
-
     @Provides
     @Singleton
     fun provideFirebaseFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
@@ -85,37 +30,4 @@ object NetworkModule {
         "itihaasa_prefs",
         Context.MODE_PRIVATE
     )
-
-    @Provides
-    @Singleton
-    fun provideDistrictDataSource(
-        @ApplicationContext context: Context
-    ): DistrictDataSource = DistrictDataSource(context)
-
-    private fun geminiHttpClient(): OkHttpClient {
-        return OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(90, TimeUnit.SECONDS)
-            .callTimeout(100, TimeUnit.SECONDS)
-            .build()
-    }
-
-    private fun wikipediaHttpClient(): OkHttpClient {
-        return OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                val request = chain.request()
-                    .newBuilder()
-                    .header("User-Agent", WIKIMEDIA_USER_AGENT)
-                    .build()
-                chain.proceed(request)
-            }
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .callTimeout(30, TimeUnit.SECONDS)
-            .build()
-    }
-
-    private const val WIKIMEDIA_USER_AGENT =
-        "NammaKathey/1.0 (heritage-story-app; contact: developer@nammakathey.local)"
 }

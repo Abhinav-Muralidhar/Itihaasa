@@ -1,5 +1,6 @@
 package com.itihaasa.nammakathey.ui.nearme
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Location
 import androidx.lifecycle.ViewModel
@@ -69,6 +70,7 @@ class NearMeViewModel @Inject constructor(
         refresh()
     }
 
+    @SuppressLint("MissingPermission")
     fun refresh() {
         val state = _uiState.value
         if (!state.permissionGranted) return
@@ -165,4 +167,3 @@ class NearMeViewModel @Inject constructor(
         longitude = lng
     }
 }
-
