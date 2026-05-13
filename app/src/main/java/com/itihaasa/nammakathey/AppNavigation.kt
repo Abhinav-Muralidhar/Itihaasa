@@ -174,7 +174,8 @@ fun NammaKatheyRoot() {
                         ProfileScreen(
                             onBackClick = { navController.popBackStack() },
                             onAuthClick = { navController.navigate(Screen.Auth.route) },
-                            onSetupClick = { navController.navigate(Screen.ProfileSetup.route) }
+                            onSetupClick = { navController.navigate(Screen.ProfileSetup.route) },
+                            onStoryClick = { placeId -> navController.navigate(Screen.Story.route(placeId)) }
                         )
                     }
                     composable(Screen.Auth.route) {

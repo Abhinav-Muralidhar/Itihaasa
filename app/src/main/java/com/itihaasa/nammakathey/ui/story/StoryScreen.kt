@@ -37,16 +37,17 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -69,7 +70,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -87,10 +87,15 @@ import com.itihaasa.nammakathey.data.local.DistrictDataSource
 import com.itihaasa.nammakathey.data.repository.StoryProgressRepository
 import com.itihaasa.nammakathey.data.repository.StoryRepository
 import com.itihaasa.nammakathey.model.District
+import com.itihaasa.nammakathey.model.ExplorerRank
 import com.itihaasa.nammakathey.model.QuizQuestion
 import com.itihaasa.nammakathey.model.Story
 import com.itihaasa.nammakathey.model.StoryCatalogEntry
 import com.itihaasa.nammakathey.model.StorySection
+import com.itihaasa.nammakathey.model.toExplorerRank
+import com.itihaasa.nammakathey.ui.components.HeritageBadge
+import com.itihaasa.nammakathey.ui.components.HeritageBadgeStyle
+import com.itihaasa.nammakathey.ui.components.HeritageBadgeVisual
 import com.itihaasa.nammakathey.ui.theme.Charcoal
 import com.itihaasa.nammakathey.ui.theme.HeritageOchre
 import com.itihaasa.nammakathey.ui.theme.MutedClay
@@ -136,6 +141,7 @@ class StoryScreenViewModel @Inject constructor(
                 isLoading = true,
                 errorMessage = null,
                 badgeEarned = false,
+                rankUpEvent = null,
                 quizAnswers = emptyMap(),
                 sectionChoices = emptyMap(),
                 districts = districtDataSource.districts
@@ -198,6 +204,7 @@ class StoryScreenViewModel @Inject constructor(
                 sectionChoices = emptyMap(),
                 quizAnswers = emptyMap(),
                 badgeEarned = false,
+                rankUpEvent = null,
                 errorMessage = null
             )
         }
@@ -239,16 +246,34 @@ class StoryScreenViewModel @Inject constructor(
             answers.size == story.quiz.size &&
             correct == story.quiz.size
         _uiState.update {
-            it.copy(badgeEarned = passed)
+            it.copy(badgeEarned = passed, rankUpEvent = null)
         }
         if (passed) {
             _uiState.value.hero?.let { hero ->
+                val previousCompleted = storyProgressRepository.getCompletedHeroIds()
+                val wasNewCompletion = hero.placeId !in previousCompleted
+                val oldRank = previousCompleted.size.toExplorerRank()
                 val updatedCompleted = storyProgressRepository.markHeroCompletedLocally(hero)
+                val newRank = updatedCompleted.size.toExplorerRank()
                 val districtIsNowComplete = storyCatalogDataSource
                     .getStoriesByDistrict(hero.district)
                     .all { it.placeId in updatedCompleted }
                 _uiState.update { state ->
-                    state.copy(completedHeroIds = updatedCompleted)
+                    state.copy(
+                        completedHeroIds = updatedCompleted,
+                        rankUpEvent = if (
+                            wasNewCompletion &&
+                            newRank.badgesRequired > oldRank.badgesRequired
+                        ) {
+                            RankUpEvent(
+                                oldRank = oldRank,
+                                newRank = newRank,
+                                completedStoryCount = updatedCompleted.size
+                            )
+                        } else {
+                            null
+                        }
+                    )
                 }
                 viewModelScope.launch(Dispatchers.IO) {
                     storyProgressRepository.markHeroCompleted(hero)
@@ -305,7 +330,8 @@ class StoryScreenViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 quizAnswers = emptyMap(),
-                badgeEarned = false
+                badgeEarned = false,
+                rankUpEvent = null
             )
         }
     }
@@ -323,9 +349,16 @@ data class StoryScreenUiState(
     val districts: List<District> = emptyList(),
     val unlockedDistricts: Set<String> = emptySet(),
     val completedHeroIds: Set<String> = emptySet(),
+    val rankUpEvent: RankUpEvent? = null,
     val activeDistrict: String? = null,
     val isUnlocking: Boolean = false,
     val errorMessage: String? = null
+)
+
+data class RankUpEvent(
+    val oldRank: ExplorerRank,
+    val newRank: ExplorerRank,
+    val completedStoryCount: Int
 )
 
 private const val KEY_HOME_DISTRICT = "home_district"
@@ -444,6 +477,7 @@ fun StoryScreen(
                             BadgePage(
                                 hero = currentHero,
                                 badgeEarned = uiState.badgeEarned,
+                                rankUpEvent = uiState.rankUpEvent,
                                 remainingCount = viewModel.remainingHeroesInDistrict(currentHero),
                                 nextHero = viewModel.nextHeroInDistrict(currentHero),
                                 unlockableDistricts = viewModel.unlockableDistricts(currentHero),
@@ -1142,6 +1176,7 @@ fun QuizPage(
 fun BadgePage(
     hero: StoryCatalogEntry,
     badgeEarned: Boolean,
+    rankUpEvent: RankUpEvent?,
     remainingCount: Int,
     nextHero: StoryCatalogEntry?,
     unlockableDistricts: List<String>,
@@ -1155,6 +1190,8 @@ fun BadgePage(
         var selectedDistrict by remember(hero.placeId, unlockableDistricts) {
             mutableStateOf(unlockableDistricts.firstOrNull())
         }
+        var districtMenuExpanded by remember { mutableStateOf(false) }
+        val districtCompleted = remainingCount == 0
         LaunchedEffect(hero.placeId) {
             burstVisible = false
             delay(120)
@@ -1188,7 +1225,11 @@ fun BadgePage(
                         animationSpec = spring(dampingRatio = 0.42f, stiffness = 260f)
                     ) + fadeIn()
                 ) {
-                    StoryBadgeMedallion(hero = hero)
+                    if (districtCompleted) {
+                        EarnedBadgePair(hero = hero)
+                    } else {
+                        StoryBadgeMedallion(hero = hero)
+                    }
                 }
             }
 
@@ -1249,6 +1290,11 @@ fun BadgePage(
                 }
             }
 
+            if (rankUpEvent != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+                RankUpCelebrationCard(rankUpEvent = rankUpEvent)
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Surface(
@@ -1286,26 +1332,66 @@ fun BadgePage(
                             color = Charcoal,
                             lineHeight = 17.sp
                         )
-                        unlockableDistricts.forEach { district ->
+                        if (unlockableDistricts.isNotEmpty()) {
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                Surface(
+                                    onClick = { districtMenuExpanded = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = Parchment,
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.24f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Next district",
+                                                fontSize = 11.sp,
+                                                color = Charcoal.copy(alpha = 0.68f)
+                                            )
+                                            Text(
+                                                text = selectedDistrict.orEmpty(),
+                                                color = RoyalIndigo,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Icon(
+                                            imageVector = Icons.Filled.KeyboardArrowDown,
+                                            contentDescription = null,
+                                            tint = RoyalIndigo
+                                        )
+                                    }
+                                }
+                                DropdownMenu(
+                                    expanded = districtMenuExpanded,
+                                    onDismissRequest = { districtMenuExpanded = false }
+                                ) {
+                                    unlockableDistricts.forEach { district ->
+                                        DropdownMenuItem(
+                                            text = { Text(district) },
+                                            onClick = {
+                                                selectedDistrict = district
+                                                districtMenuExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
                             Surface(
-                                onClick = { selectedDistrict = district },
                                 modifier = Modifier.fillMaxWidth(),
-                                color = if (selectedDistrict == district) {
-                                    RoyalIndigo.copy(alpha = 0.10f)
-                                } else {
-                                    Parchment
-                                },
+                                color = Parchment,
                                 shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (selectedDistrict == district) RoyalIndigo else RoyalIndigo.copy(alpha = 0.18f)
-                                )
+                                border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.18f))
                             ) {
                                 Text(
-                                    text = district,
+                                    text = "All available districts are already unlocked.",
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                                     color = RoyalIndigo,
-                                    fontWeight = if (selectedDistrict == district) FontWeight.Bold else FontWeight.Medium
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }
@@ -1406,37 +1492,179 @@ fun BadgePage(
 }
 
 @Composable
-private fun StoryBadgeMedallion(hero: StoryCatalogEntry) {
-    val accent = hero.badgeAccent()
+private fun RankUpCelebrationCard(rankUpEvent: RankUpEvent) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = HeritageOchre,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, ParchmentLight.copy(alpha = 0.34f))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Rank up!",
+                fontSize = 22.sp,
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.Bold,
+                color = RoyalIndigo,
+                textAlign = TextAlign.Center
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                RankBadge(rank = rankUpEvent.oldRank, active = false)
+                Text(
+                    text = "->",
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = RoyalIndigo
+                )
+                RankBadge(rank = rankUpEvent.newRank, active = true)
+            }
+            Text(
+                text = "You reached ${rankUpEvent.newRank.title} after completing ${rankUpEvent.completedStoryCount} stories.",
+                fontSize = 13.sp,
+                color = RoyalIndigo,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp
+            )
+        }
+    }
+}
 
+@Composable
+private fun RankBadge(
+    rank: ExplorerRank,
+    active: Boolean
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.width(104.dp)
+    ) {
+        HeritageBadge(
+            visual = rank.toBadgeVisual(active = active),
+            size = if (active) 78.dp else 66.dp,
+            labelVisible = false
+        )
+        Text(
+            text = rank.title,
+            fontSize = 12.sp,
+            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+            color = RoyalIndigo,
+            textAlign = TextAlign.Center,
+            maxLines = 2
+        )
+    }
+}
+
+@Composable
+private fun DistrictCrestBadge(district: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        HeritageBadge(
+            visual = district.toDistrictBadgeVisual(),
+            size = 66.dp,
+            labelVisible = false
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "$district District Crest",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = RoyalIndigo
+            )
+            Text(
+                text = "Awarded for completing every story in this district.",
+                fontSize = 12.sp,
+                color = Charcoal.copy(alpha = 0.72f),
+                lineHeight = 17.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun EarnedBadgePair(hero: StoryCatalogEntry) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                HeritageBadge(
+                    visual = hero.toHeroBadgeVisual(),
+                    size = 106.dp,
+                    labelVisible = false
+                )
+                Text(
+                    text = "Hero badge",
+                    color = ParchmentLight,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                HeritageBadge(
+                    visual = hero.district.toDistrictBadgeVisual(),
+                    size = 106.dp,
+                    labelVisible = false
+                )
+                Text(
+                    text = "District crest",
+                    color = ParchmentLight,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        Text(
+            text = hero.title,
+            color = ParchmentLight,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            maxLines = 2
+        )
+    }
+}
+
+@Composable
+private fun StoryBadgeMedallion(hero: StoryCatalogEntry) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Surface(
-            modifier = Modifier
-                .size(132.dp)
-                .border(2.dp, accent.copy(alpha = 0.42f), CircleShape),
-            shape = CircleShape,
-            color = accent
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Box(
-                    modifier = Modifier
-                        .size(92.dp)
-                        .clip(CircleShape)
-                        .background(ParchmentLight.copy(alpha = 0.14f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = hero.badgeIcon(),
-                        contentDescription = null,
-                        tint = ParchmentLight,
-                        modifier = Modifier.size(48.dp)
-                    )
-                }
-            }
-        }
+        HeritageBadge(
+            visual = hero.toHeroBadgeVisual(),
+            size = 132.dp,
+            labelVisible = false
+        )
         Text(
             text = hero.title,
             color = ParchmentLight,
@@ -1447,17 +1675,41 @@ private fun StoryBadgeMedallion(hero: StoryCatalogEntry) {
     }
 }
 
-private fun StoryCatalogEntry.badgeIcon(): ImageVector {
-    val source = "${title.lowercase(Locale.getDefault())} ${district.lowercase(Locale.getDefault())}"
-    return when {
-        listOf("temple", "mandir", "devasthana", "gudi").any(source::contains) -> Icons.Filled.CheckCircle
-        listOf("fort", "kote", "durga").any(source::contains) -> Icons.Filled.LocationOn
-        listOf("palace", "mahal").any(source::contains) -> Icons.Filled.EmojiEvents
-        listOf("cave", "gavi").any(source::contains) -> Icons.Filled.Map
-        listOf("river", "falls", "kere", "lake").any(source::contains) -> Icons.Filled.Star
-        else -> Icons.Filled.EmojiEvents
-    }
-}
+private fun StoryCatalogEntry.toHeroBadgeVisual(): HeritageBadgeVisual =
+    HeritageBadgeVisual(
+        title = title,
+        subtitle = district,
+        typeLabel = "Hero",
+        districtCode = district,
+        primary = badgeAccent(),
+        secondary = HeritageOchre,
+        emblemText = "HERO",
+        style = HeritageBadgeStyle.Hero
+    )
+
+private fun String.toDistrictBadgeVisual(): HeritageBadgeVisual =
+    HeritageBadgeVisual(
+        title = "$this District Crest",
+        subtitle = "District complete",
+        typeLabel = "District",
+        districtCode = this,
+        primary = Color(0xFF205D68),
+        secondary = HeritageOchre,
+        emblemText = "CREST",
+        style = HeritageBadgeStyle.District
+    )
+
+private fun ExplorerRank.toBadgeVisual(active: Boolean): HeritageBadgeVisual =
+    HeritageBadgeVisual(
+        title = title,
+        subtitle = "${badgesRequired} stories",
+        typeLabel = "Rank",
+        districtCode = "${badgesRequired} stories",
+        primary = if (active) RoyalIndigo else ParchmentLight.copy(alpha = 0.64f),
+        secondary = if (active) HeritageOchre else RoyalIndigo.copy(alpha = 0.56f),
+        emblemText = "RANK",
+        style = HeritageBadgeStyle.Rank
+    )
 
 private fun StoryCatalogEntry.badgeAccent(): Color {
     val source = "${title.lowercase(Locale.getDefault())} ${district.lowercase(Locale.getDefault())}"
@@ -1482,17 +1734,19 @@ private fun CelebrationConfetti(
         label = "confettiProgress"
     )
     val pieces = remember {
-        List(14) {
+        List(30) { index ->
             ConfettiPiece(
-                x = Random.nextInt(-180, 181).toFloat(),
-                y = Random.nextInt(-170, 171).toFloat(),
-                drift = Random.nextInt(24, 54).toFloat(),
-                size = Random.nextInt(8, 14).dp,
+                x = Random.nextInt(-190, 191).toFloat(),
+                drift = Random.nextInt(-48, 49).toFloat(),
+                delay = index / 44f,
+                size = Random.nextInt(6, 12).dp,
                 color = listOf(
                     HeritageOchre,
                     ParchmentLight,
                     Color(0xFF27AE60),
-                    Color(0xFFF4C25A)
+                    Color(0xFFF4C25A),
+                    Color(0xFFE57373),
+                    Color(0xFF64B5F6)
                 ).random()
             )
         }
@@ -1500,22 +1754,25 @@ private fun CelebrationConfetti(
 
     Box(modifier = modifier) {
         pieces.forEachIndexed { index, piece ->
-            val sway = sin((progress * Math.PI * 2) + index).toFloat()
+            val localProgress = ((progress * 1.35f) - piece.delay).coerceIn(0f, 1f)
+            val sway = sin((localProgress * Math.PI * 3) + index).toFloat()
             Box(
                 modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(piece.size)
+                    .align(Alignment.TopCenter)
+                    .width(piece.size)
+                    .height(piece.size * 1.7f)
                     .graphicsLayer {
-                        translationX = piece.x * progress + sway * piece.drift
-                        translationY = piece.y * progress - (progress * 80f)
-                        rotationZ = progress * 280f + (index * 11f)
+                        translationX = piece.x + sway * piece.drift
+                        translationY = -48f + (localProgress * 380f)
+                        rotationZ = localProgress * 540f + (index * 17f)
                         alpha = when {
-                            progress <= 0f -> 0f
-                            progress < 0.2f -> progress / 0.2f
-                            else -> 1f - (progress - 0.2f) * 0.45f
+                            localProgress <= 0f -> 0f
+                            localProgress < 0.08f -> localProgress / 0.08f
+                            localProgress > 0.86f -> 1f - ((localProgress - 0.86f) / 0.14f)
+                            else -> 1f
                         }.coerceIn(0f, 1f)
-                        scaleX = 0.6f + (progress * 0.6f)
-                        scaleY = 0.6f + (progress * 0.6f)
+                        scaleX = 0.8f + (localProgress * 0.3f)
+                        scaleY = 0.8f + (localProgress * 0.3f)
                     }
                     .clip(RoundedCornerShape(2.dp))
                     .background(piece.color)
@@ -1526,8 +1783,8 @@ private fun CelebrationConfetti(
 
 private data class ConfettiPiece(
     val x: Float,
-    val y: Float,
     val drift: Float,
+    val delay: Float,
     val size: androidx.compose.ui.unit.Dp,
     val color: Color
 )

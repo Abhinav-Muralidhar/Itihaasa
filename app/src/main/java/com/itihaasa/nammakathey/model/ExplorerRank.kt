@@ -6,12 +6,14 @@ enum class ExplorerRank(
     val badgesRequired: Int,
     val description: String
 ) {
-    NAVARANGA("Navaranga", "ನವರಂಗ", 0, "A newcomer beginning their journey"),
-    NAYAKA("Nayaka", "ನಾಯಕ", 1, "A local leader who knows their district"),
-    SENAPATI("Senapati", "ಸೇನಾಪತಿ", 5, "A commander who has led many battles"),
-    VEERA("Veera", "ವೀರ", 10, "A warrior of proven courage"),
-    RAJADUTA("Rajaduta", "ರಾಜದೂತ", 20, "An ambassador of Karnataka's heritage"),
-    KARNATAKA_RATNA("Karnataka Ratna", "ಕರ್ನಾಟಕ ರತ್ನ", 30, "The jewel of Karnataka history")
+    NAVARANGA("Navaranga", "Navaranga", 0, "A newcomer beginning their journey"),
+    NAYAKA("Nayaka", "Nayaka", 3, "A local leader who is building steady story knowledge"),
+    SENAPATI("Senapati", "Senapati", 8, "A commander who has completed stories across districts"),
+    VEERA("Veera", "Veera", 15, "A warrior of proven courage and curiosity"),
+    RAJADUTA("Rajaduta", "Rajaduta", 25, "An ambassador carrying Karnataka's heritage forward"),
+    MAHAMANDALA("Mahamandala", "Mahamandala", 40, "A keeper of many district memories"),
+    ITIHASA_RAKSHAKA("Itihasa Rakshaka", "Itihasa Rakshaka", 55, "A guardian whose journey spans most of Karnataka"),
+    KARNATAKA_RATNA("Karnataka Ratna", "Karnataka Ratna", 66, "The jewel of Karnataka history")
 }
 
 fun Int.toExplorerRank(): ExplorerRank =

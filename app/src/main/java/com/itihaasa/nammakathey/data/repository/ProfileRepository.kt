@@ -192,7 +192,7 @@ class ProfileRepository @Inject constructor(
                             .toSet(),
                         unlockedDistricts = snapshot.getStringList("unlockedDistricts").toSet(),
                         explorerRank = snapshot.pickExplorerRank(
-                            badgeCount = snapshot.getListOfMaps("badgesEarned").size
+                            badgeCount = heroBadges.distinctBy { it.placeId }.size
                         ),
                         joinedAt = snapshot.get("joinedAt").toEpochMillis(),
                         badgesEarned = (heroBadges + districtBadges).distinctBy { it.placeId },

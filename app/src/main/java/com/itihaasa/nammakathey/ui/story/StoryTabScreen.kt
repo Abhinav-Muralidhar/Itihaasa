@@ -13,12 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Card
@@ -36,8 +35,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -480,104 +479,100 @@ fun StoryCard(
             BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.10f))
         }
     ) {
-        Box {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(
-                            when {
-                                isUnlocked -> HeritageOchre
-                                else -> RoyalIndigo.copy(alpha = 0.15f)
-                            },
-                            CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isCompleted) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    } else if (!isUnlocked) {
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = null,
-                            tint = RoyalIndigo.copy(alpha = 0.5f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    } else {
-                        Text(
-                            text = "$index",
-                            fontSize = 16.sp,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = hero.title,
+                    fontSize = 17.sp,
+                    fontFamily = FontFamily.Serif,
+                    color = if (isUnlocked) RoyalIndigo else Charcoal.copy(alpha = 0.58f),
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!isCompleted) {
                     Text(
-                        text = hero.title,
-                        fontSize = 17.sp,
-                        fontFamily = FontFamily.Serif,
-                        color = if (isUnlocked) RoyalIndigo else Charcoal.copy(alpha = 0.58f),
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = if (isCompleted) "Completed" else if (isUnlocked) "Chronology ${hero.chronologicalOrder}" else "Locked",
+                        text = if (isUnlocked) "Chronology ${hero.chronologicalOrder}" else "Locked",
                         fontSize = 12.sp,
                         color = if (isUnlocked) HeritageOchre else Charcoal.copy(alpha = 0.3f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+            }
 
-                if (isUnlocked && !isCompleted) {
-                    Icon(
+            Box(
+                modifier = Modifier.width(64.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                when {
+                    isCompleted -> CompletedStorySeal()
+                    !isUnlocked -> Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = RoyalIndigo.copy(alpha = 0.42f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    else -> Icon(
                         imageVector = Icons.Default.ChevronRight,
                         contentDescription = null,
                         tint = HeritageOchre,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
-            }
-
-            if (isCompleted) {
-                CompletedStamp(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 10.dp, end = 10.dp)
-                )
             }
         }
     }
 }
 
 @Composable
-private fun CompletedStamp(modifier: Modifier = Modifier) {
+private fun CompletedStorySeal(modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier.graphicsLayer { rotationZ = -12f },
-        shape = RoundedCornerShape(8.dp),
-        color = Color.Transparent,
-        border = BorderStroke(1.5.dp, Color(0xFF27AE60).copy(alpha = 0.85f))
+        modifier = modifier
+            .width(72.dp)
+            .height(42.dp)
+            .graphicsLayer { rotationZ = -7f },
+        shape = RoundedCornerShape(999.dp),
+        color = ParchmentLight.copy(alpha = 0.72f),
+        border = BorderStroke(1.6.dp, RoyalIndigo.copy(alpha = 0.82f))
     ) {
-        Text(
-            text = "COMPLETED",
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Black,
-            color = Color(0xFF27AE60).copy(alpha = 0.9f),
-            letterSpacing = 1.5.sp,
-            textAlign = TextAlign.Center
-        )
+        Box(
+            modifier = Modifier
+                .padding(4.dp)
+                .border(
+                    width = 1.dp,
+                    color = HeritageOchre.copy(alpha = 0.76f),
+                    shape = RoundedCornerShape(999.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "CONQUERED",
+                    fontSize = 7.sp,
+                    fontWeight = FontWeight.Black,
+                    color = RoyalIndigo.copy(alpha = 0.92f),
+                    letterSpacing = 0.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+                Text(
+                    text = "DONE",
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.Black,
+                    color = HeritageOchre,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+            }
+        }
     }
 }

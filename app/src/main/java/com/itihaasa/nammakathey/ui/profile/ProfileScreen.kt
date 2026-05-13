@@ -3,6 +3,7 @@ package com.itihaasa.nammakathey.ui.profile
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.BorderStroke
@@ -23,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Login
@@ -31,20 +31,24 @@ import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,10 +70,12 @@ import com.itihaasa.nammakathey.model.Badge
 import com.itihaasa.nammakathey.model.ExplorerRank
 import com.itihaasa.nammakathey.model.ExploredPlace
 import com.itihaasa.nammakathey.model.toExplorerRank
+import com.itihaasa.nammakathey.ui.components.HeritageBadge
+import com.itihaasa.nammakathey.ui.components.HeritageBadgeStyle
+import com.itihaasa.nammakathey.ui.components.HeritageBadgeVisual
 import com.itihaasa.nammakathey.ui.theme.Charcoal
 import com.itihaasa.nammakathey.ui.theme.RoyalIndigo
 import com.itihaasa.nammakathey.ui.theme.HeritageOchre
-import com.itihaasa.nammakathey.ui.theme.OchreContainer
 import com.itihaasa.nammakathey.ui.theme.Parchment
 import com.itihaasa.nammakathey.ui.theme.ParchmentLight
 import com.itihaasa.nammakathey.ui.theme.ParchmentVariant
@@ -83,6 +89,7 @@ fun ProfileScreen(
     onSettingsClick: () -> Unit = {},
     onAuthClick: () -> Unit = {},
     onSetupClick: () -> Unit = {},
+    onStoryClick: (String) -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -144,7 +151,8 @@ fun ProfileScreen(
                     completedDistrictCount = uiState.completedDistrictCount,
                     onBackClick = onBackClick,
                     onSettingsClick = onSettingsClick,
-                    onSignOutClick = signOut
+                    onSignOutClick = signOut,
+                    onStoryClick = onStoryClick
                 )
             }
         }
@@ -167,9 +175,12 @@ private fun ProfileContent(
     onBackClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onSignOutClick: (() -> Unit)?,
+    onStoryClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (profile == null) return
+    var selectedBadge by remember { mutableStateOf<Badge?>(null) }
+    var selectedDistrictProgress by remember { mutableStateOf<DistrictProgressUiModel?>(null) }
 
     Column(
         modifier = modifier
@@ -182,9 +193,18 @@ private fun ProfileContent(
         ProfileHeader(profile, completedDistrictCount)
         JourneySummarySection(profile)
         RewardRewardsSection(cards = rewardCards)
-        DistrictProgressSection(profile, districtProgress)
-        BadgeCollectionPreviewSection(profile.badgesEarned)
-        BadgeCollectionSection(profile.badgesEarned)
+        DistrictProgressSection(
+            districtProgress = districtProgress,
+            onDistrictClick = { selectedDistrictProgress = it }
+        )
+        BadgeCollectionPreviewSection(
+            badges = profile.badgesEarned,
+            onBadgeClick = { selectedBadge = it }
+        )
+        BadgeCollectionSection(
+            badges = profile.badgesEarned,
+            onBadgeClick = { selectedBadge = it }
+        )
         if (onSignOutClick != null) {
             OutlinedButton(
                 onClick = onSignOutClick,
@@ -200,6 +220,24 @@ private fun ProfileContent(
                 Text("Sign Out")
             }
         }
+    }
+
+    selectedBadge?.let { badge ->
+        BadgeDetailSheet(
+            badge = badge,
+            onDismiss = { selectedBadge = null },
+            onOpenStory = {
+                selectedBadge = null
+                onStoryClick(badge.placeId)
+            }
+        )
+    }
+
+    selectedDistrictProgress?.let { progress ->
+        DistrictCrestDetailSheet(
+            progress = progress,
+            onDismiss = { selectedDistrictProgress = null }
+        )
     }
 }
 
@@ -258,20 +296,30 @@ private fun RewardTemplateCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(accent),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = ParchmentLight,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+                HeritageBadge(
+                    visual = HeritageBadgeVisual(
+                        title = title,
+                        subtitle = subtitle,
+                        typeLabel = typeLabel,
+                        districtCode = typeLabel.split(" ").joinToString("") { word ->
+                            word.firstOrNull()?.uppercaseChar()?.toString().orEmpty()
+                        },
+                        primary = accent,
+                        secondary = HeritageOchre,
+                        emblemText = when (typeLabel) {
+                            "District Badge" -> "CREST"
+                            "Rank Plaque" -> "RANK"
+                            else -> "HERO"
+                        },
+                        style = when (typeLabel) {
+                            "District Badge" -> HeritageBadgeStyle.District
+                            "Rank Plaque" -> HeritageBadgeStyle.Rank
+                            else -> HeritageBadgeStyle.Hero
+                        }
+                    ),
+                    size = 48.dp,
+                    labelVisible = false
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = typeLabel,
@@ -350,7 +398,7 @@ private fun ProfileTopBar(
 @Composable
 private fun ProfileHeader(profile: ProfileJourney, completedDistrictCount: Int) {
     val badgeCount = profile.badgesEarned.distinctBy { it.placeId }.size
-    val exploredPlaces = profile.placesExplored.distinctBy { it.placeId }.size
+    val storyCount = profile.completedStoryCount()
 
     Surface(
         color = RoyalIndigo,
@@ -397,7 +445,7 @@ private fun ProfileHeader(profile: ProfileJourney, completedDistrictCount: Int) 
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                HeaderMetric("Places", exploredPlaces.toString(), Icons.Filled.LocationOn, Modifier.weight(1f))
+                HeaderMetric("Stories", storyCount.toString(), Icons.Filled.Map, Modifier.weight(1f))
                 HeaderMetric("Badges", badgeCount.toString(), Icons.Filled.EmojiEvents, Modifier.weight(1f))
                 HeaderMetric("Districts", completedDistrictCount.toString(), Icons.Filled.Map, Modifier.weight(1f))
             }
@@ -482,7 +530,7 @@ private fun HeaderMetric(
 
 @Composable
 private fun JourneySummarySection(profile: ProfileJourney) {
-    val badgeCount = profile.badgesEarned.distinctBy { it.placeId }.size
+    val badgeCount = profile.badgesEarned.rankBadgeCount()
     val currentRank = badgeCount.toExplorerRank()
     val nextRank = ExplorerRank.entries
         .sortedBy { it.badgesRequired }
@@ -517,11 +565,12 @@ private fun JourneySummarySection(profile: ProfileJourney) {
                         .background(HeritageOchre),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Star,
-                        contentDescription = null,
-                        tint = Parchment,
-                        modifier = Modifier.size(27.dp)
+                    Text(
+                        text = "RANK",
+                        color = Parchment,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        textAlign = TextAlign.Center
                     )
                 }
                 Column(modifier = Modifier.weight(1f)) {
@@ -552,7 +601,7 @@ private fun JourneySummarySection(profile: ProfileJourney) {
             )
             InfoRow(
                 label = "Next milestone",
-                value = nextRank?.let { "$badgeCount / ${it.badgesRequired} badges to ${it.title}" }
+                value = nextRank?.let { "$badgeCount / ${it.badgesRequired} badges " }
                     ?: "$badgeCount badges earned"
             )
             InfoRow(
@@ -599,7 +648,7 @@ private fun StatsRow(profile: ProfileJourney) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        StatCard("Places", profile.placesExplored.distinctBy { it.placeId }.size.toString(), Modifier.weight(1f))
+        StatCard("Stories", profile.completedStoryCount().toString(), Modifier.weight(1f))
         StatCard("Badges", profile.badgesEarned.distinctBy { it.placeId }.size.toString(), Modifier.weight(1f))
         StatCard("Streak", profile.quizStreak.toString(), Modifier.weight(1f))
         StatCard("Districts", exploredDistricts.toString(), Modifier.weight(1f))
@@ -640,7 +689,10 @@ private fun StatCard(
 }
 
 @Composable
-private fun BadgeCollectionPreviewSection(badges: List<Badge>) {
+private fun BadgeCollectionPreviewSection(
+    badges: List<Badge>,
+    onBadgeClick: (Badge) -> Unit
+) {
     val earned = badges.distinctBy { it.placeId }.sortedByDescending { it.earnedAt }.take(3)
 
     SectionCard(title = "Recent Badges") {
@@ -673,24 +725,17 @@ private fun BadgeCollectionPreviewSection(badges: List<Badge>) {
         } else {
             earned.forEach { badge ->
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onBadgeClick(badge) },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(badge.badgeAccent()),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = badge.badgeIcon(),
-                            contentDescription = null,
-                            tint = ParchmentLight,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    HeritageBadge(
+                        visual = badge.toBadgeVisual(),
+                        size = 48.dp,
+                        labelVisible = false
+                    )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = badge.placeName.ifBlank { "Heritage story" },
@@ -710,12 +755,9 @@ private fun BadgeCollectionPreviewSection(badges: List<Badge>) {
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    Icon(
-                        imageVector = Icons.Filled.CheckCircle,
-                        contentDescription = null,
-                        tint = HeritageOchre,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    TextButton(onClick = { onBadgeClick(badge) }) {
+                        Text("View")
+                    }
                 }
             }
         }
@@ -724,80 +766,77 @@ private fun BadgeCollectionPreviewSection(badges: List<Badge>) {
 
 @Composable
 private fun DistrictProgressSection(
-    profile: ProfileJourney,
-    districtProgress: Map<String, DistrictProgressUiModel>
+    districtProgress: Map<String, DistrictProgressUiModel>,
+    onDistrictClick: (DistrictProgressUiModel) -> Unit
 ) {
-    val homeDistrict = profile.homeDistrict.normalizedDistrict()
-    val completedDistricts = districtProgress.values.count { it.isComplete }
+    val districtItems = districtProgress.values
+        .sortedBy { it.district }
+    val completedDistricts = districtItems.count { it.isComplete }
 
-    SectionCard(title = "District Journey") {
+    SectionCard(title = "District Crests") {
         Text(
-            text = "$completedDistricts / ${KARNATAKA_DISTRICTS.size} districts complete",
+            text = "$completedDistricts / ${districtItems.size} district crests earned",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
             color = Charcoal
         )
         Text(
-            text = profile.homeDistrict
-                .takeIf { it.isNotBlank() }
-                ?.let { "$it is your home district. It completes as you finish every story there." }
-                ?: "Choose a home district to start your story path.",
+            text = "Each crest unlocks after every story in that district is complete. Locked crests stay muted until then.",
             style = MaterialTheme.typography.bodySmall,
             color = Charcoal.copy(alpha = 0.72f)
         )
-        KARNATAKA_DISTRICTS.chunked(5).forEach { rowDistricts ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                rowDistricts.forEach { district ->
-                    val progress = districtProgress[district.normalizedDistrict()]
-                    val explored = progress?.isComplete == true
-                    val isHome = district.normalizedDistrict() == homeDistrict
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                when {
-                                    explored -> RoyalIndigo
-                                    isHome -> OchreContainer
-                                    else -> Parchment
-                                }
-                            )
-                            .border(
-                                width = 1.dp,
-                                color = when {
-                                    explored -> RoyalIndigo
-                                    isHome -> HeritageOchre
-                                    else -> HeritageOchre.copy(alpha = 0.42f)
-                                },
-                                shape = RoundedCornerShape(8.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = when {
-                                explored -> "Done"
-                                (progress?.completed ?: 0) > 0 -> "${progress?.completed}/${progress?.total}"
-                                else -> district.districtInitials()
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = if (explored) Parchment else if (isHome) RoyalIndigo else HeritageOchre,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1
-                        )
-                    }
-                }
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            districtItems.forEach { progress ->
+                DistrictCrestProgressItem(
+                    progress = progress,
+                    onClick = { onDistrictClick(progress) }
+                )
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            LegendItem(color = HeritageOchre, text = "Home")
-            LegendItem(color = RoyalIndigo, text = "Complete")
+            LegendItem(color = Color(0xFF205D68), text = "Earned")
+            LegendItem(color = HeritageOchre, text = "In progress")
             LegendItem(color = ParchmentVariant, text = "Locked")
         }
+    }
+}
+
+@Composable
+private fun DistrictCrestProgressItem(
+    progress: DistrictProgressUiModel,
+    onClick: () -> Unit
+) {
+    val earned = progress.isComplete
+
+    Column(
+        modifier = Modifier.width(110.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        HeritageBadge(
+            visual = progress.toCrestVisual(),
+            size = 82.dp,
+            labelVisible = false,
+            onClick = onClick
+        )
+        Text(
+            text = progress.district,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (earned) FontWeight.Bold else FontWeight.SemiBold,
+            color = if (earned) Charcoal else Charcoal.copy(alpha = 0.66f),
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = if (earned) "Complete" else "${progress.completed}/${progress.total}",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (earned) HeritageOchre else Charcoal.copy(alpha = 0.58f),
+            textAlign = TextAlign.Center
+        )
     }
 }
 
@@ -825,27 +864,39 @@ private fun LegendItem(
 }
 
 @Composable
-private fun BadgeCollectionSection(badges: List<Badge>) {
-    SectionCard(title = "Badge Collection") {
-        if (badges.isEmpty()) {
-            EmptyText("Your badge collection will grow here after each completed story quiz.")
+private fun BadgeCollectionSection(
+    badges: List<Badge>,
+    onBadgeClick: (Badge) -> Unit
+) {
+    val heroBadges = badges
+        .filterNot { it.badgeType == "district" }
+        .sortedByDescending { it.earnedAt }
+        .distinctBy { it.placeId }
+
+    SectionCard(title = "Hero Badges") {
+        if (heroBadges.isEmpty()) {
+            EmptyText("Hero badges will appear here after each completed story quiz.")
         } else {
-            badges.sortedByDescending { it.earnedAt }
-                .distinctBy { it.placeId }
-                .chunked(3)
-                .forEach { rowBadges ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                heroBadges.chunked(2).forEach { badgeColumn ->
+                    Column(
+                        modifier = Modifier.width(104.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        rowBadges.forEach { badge ->
-                            BadgeGridItem(badge = badge, modifier = Modifier.weight(1f))
-                        }
-                        repeat(3 - rowBadges.size) {
-                            Box(modifier = Modifier.weight(1f))
+                        badgeColumn.forEach { badge ->
+                            BadgeGridItem(
+                                badge = badge,
+                                onBadgeClick = onBadgeClick,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                 }
+            }
         }
     }
 }
@@ -853,6 +904,7 @@ private fun BadgeCollectionSection(badges: List<Badge>) {
 @Composable
 private fun BadgeGridItem(
     badge: Badge,
+    onBadgeClick: (Badge) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -860,30 +912,12 @@ private fun BadgeGridItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Surface(
-            modifier = Modifier
-                .size(80.dp)
-                .border(1.dp, badge.badgeAccent().copy(alpha = 0.36f), CircleShape),
-            shape = CircleShape,
-            color = badge.badgeAccent()
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Box(
-                    modifier = Modifier
-                        .size(58.dp)
-                        .clip(CircleShape)
-                        .background(ParchmentLight.copy(alpha = 0.14f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = badge.badgeIcon(),
-                        contentDescription = null,
-                        tint = ParchmentLight,
-                        modifier = Modifier.size(30.dp)
-                    )
-                }
-            }
-        }
+        HeritageBadge(
+            visual = badge.toBadgeVisual(),
+            size = 84.dp,
+            labelVisible = false,
+            onClick = { onBadgeClick(badge) }
+        )
         Text(
             text = badge.placeName.ifBlank { "Heritage" },
             style = MaterialTheme.typography.labelMedium,
@@ -911,29 +945,225 @@ private fun BadgeGridItem(
     }
 }
 
-private fun Badge.badgeIcon(): ImageVector {
-    if (badgeType == "district") return Icons.Filled.EmojiEvents
-    val source = "${placeName.lowercase(Locale.getDefault())} ${district.lowercase(Locale.getDefault())}"
-    return when {
-        listOf("temple", "mandir", "devasthana", "gudi").any(source::contains) -> Icons.Filled.CheckCircle
-        listOf("fort", "kote", "durga").any(source::contains) -> Icons.Filled.LocationOn
-        listOf("palace", "mahal").any(source::contains) -> Icons.Filled.EmojiEvents
-        listOf("cave", "gavi").any(source::contains) -> Icons.Filled.Map
-        listOf("river", "falls", "kere", "lake").any(source::contains) -> Icons.Filled.Star
-        else -> Icons.Filled.EmojiEvents
-    }
-}
-
 private fun Badge.badgeAccent(): Color {
-    if (badgeType == "district") return Color(0xFF7B4F9D)
+    if (badgeType == "district") return Color(0xFF205D68)
+    if (badgeType == "rank") return HeritageOchre
     val source = "${placeName.lowercase(Locale.getDefault())} ${district.lowercase(Locale.getDefault())}"
     return when {
         listOf("temple", "mandir", "devasthana", "gudi").any(source::contains) -> Color(0xFF8C5A2B)
-        listOf("fort", "kote", "durga").any(source::contains) -> Color(0xFF2D5A3D)
-        listOf("palace", "mahal").any(source::contains) -> Color(0xFF2E2A5F)
-        listOf("cave", "gavi").any(source::contains) -> Color(0xFF4D5C7A)
-        listOf("river", "falls", "kere", "lake").any(source::contains) -> Color(0xFF206A83)
-        else -> Color(0xFF6B4A2E)
+        listOf("fort", "kote", "durga").any(source::contains) -> Color(0xFF375D42)
+        listOf("palace", "mahal").any(source::contains) -> RoyalIndigo
+        listOf("cave", "gavi").any(source::contains) -> Color(0xFF596071)
+        listOf("river", "falls", "kere", "lake").any(source::contains) -> Color(0xFF1F6D79)
+        else -> Color(0xFFB05A35)
+    }
+}
+
+private fun ProfileJourney.completedStoryCount(): Int {
+    val completedIds = completedHeroIds.ifEmpty {
+        badgesEarned.filterNot { it.badgeType == "district" }.map { it.placeId }.toSet()
+    }
+    return completedIds.size
+}
+
+private fun List<Badge>.rankBadgeCount(): Int =
+    filterNot { it.badgeType == "district" }
+        .distinctBy { it.placeId }
+        .size
+
+private fun Badge.toBadgeVisual(): HeritageBadgeVisual =
+    HeritageBadgeVisual(
+        title = placeName.ifBlank {
+            if (badgeType == "district") "District Crest" else "Heritage Story"
+        },
+        subtitle = district,
+        typeLabel = when (badgeType) {
+            "district" -> "District"
+            "rank" -> "Rank"
+            else -> "Hero"
+        },
+        districtCode = district.ifBlank {
+            when (badgeType) {
+                "district" -> "District"
+                "rank" -> "Rank"
+                else -> "Hero"
+            }
+        },
+        primary = badgeAccent(),
+        secondary = if (badgeType == "rank") RoyalIndigo else HeritageOchre,
+        emblemText = when (badgeType) {
+            "district" -> "CREST"
+            "rank" -> "RANK"
+            else -> "HERO"
+        },
+        style = when (badgeType) {
+            "district" -> HeritageBadgeStyle.District
+            "rank" -> HeritageBadgeStyle.Rank
+            else -> HeritageBadgeStyle.Hero
+        }
+    )
+
+private fun DistrictProgressUiModel.toCrestVisual(): HeritageBadgeVisual {
+    val earned = isComplete
+    val active = completed > 0
+    return HeritageBadgeVisual(
+        title = "$district Crest",
+        subtitle = "$completed/$total stories",
+        typeLabel = "District",
+        districtCode = district,
+        primary = when {
+            earned -> Color(0xFF205D68)
+            active -> Color(0xFF7A6A4A)
+            else -> Color(0xFFB9B3A8)
+        },
+        secondary = when {
+            earned -> HeritageOchre
+            active -> HeritageOchre.copy(alpha = 0.82f)
+            else -> Color(0xFF8E877B)
+        },
+        emblemText = if (earned) "CREST" else "$completed/$total",
+        style = HeritageBadgeStyle.District
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BadgeDetailSheet(
+    badge: Badge,
+    onDismiss: () -> Unit,
+    onOpenStory: () -> Unit
+) {
+    val isHeroBadge = badge.badgeType != "district" && badge.badgeType != "rank"
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = ParchmentLight
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp, vertical = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            HeritageBadge(
+                visual = badge.toBadgeVisual(),
+                size = 132.dp,
+                labelVisible = false
+            )
+            Text(
+                text = badge.placeName.ifBlank { "Heritage Badge" },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = RoyalIndigo,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = when (badge.badgeType) {
+                    "district" -> "District crest"
+                    "rank" -> "Rank badge"
+                    else -> "Hero story badge"
+                },
+                style = MaterialTheme.typography.labelLarge,
+                color = HeritageOchre,
+                fontWeight = FontWeight.SemiBold
+            )
+            InfoRow(label = "District", value = badge.district.ifBlank { "Not set" })
+            InfoRow(label = "Earned", value = badge.earnedAt.formatDate().ifBlank { "Recently" })
+            Text(
+                text = when (badge.badgeType) {
+                    "district" -> "Unlocked by completing every story in this district."
+                    "rank" -> "Unlocked by reaching a story milestone."
+                    else -> "Unlocked by completing this hero story quiz."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = Charcoal.copy(alpha = 0.76f),
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+            if (isHeroBadge) {
+                Button(
+                    onClick = onOpenStory,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Read Story Again")
+                }
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Close")
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DistrictCrestDetailSheet(
+    progress: DistrictProgressUiModel,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = ParchmentLight
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp, vertical = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            HeritageBadge(
+                visual = progress.toCrestVisual(),
+                size = 132.dp,
+                labelVisible = false
+            )
+            Text(
+                text = "${progress.district} Crest",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = RoyalIndigo,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = if (progress.isComplete) {
+                    "District crest earned"
+                } else {
+                    "District crest locked"
+                },
+                style = MaterialTheme.typography.labelLarge,
+                color = HeritageOchre,
+                fontWeight = FontWeight.SemiBold
+            )
+            InfoRow(label = "Stories", value = "${progress.completed} / ${progress.total}")
+            InfoRow(
+                label = "Status",
+                value = if (progress.isComplete) "Complete" else "In progress"
+            )
+            Text(
+                text = if (progress.isComplete) {
+                    "Unlocked by completing every available hero story in this district."
+                } else {
+                    "Complete the remaining stories in this district to unlock this crest."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = Charcoal.copy(alpha = 0.76f),
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Close")
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+        }
     }
 }
 
@@ -1167,13 +1397,6 @@ private fun String.normalizedDistrict(): String {
     return trim().lowercase(Locale.getDefault())
 }
 
-private fun String.districtInitials(): String {
-    return split(Regex("\\s+"))
-        .filter { it.isNotBlank() }
-        .take(2)
-        .joinToString("") { it.first().uppercaseChar().toString() }
-}
-
 private fun previewProfileJourney(): ProfileJourney {
     val now = System.currentTimeMillis()
     return ProfileJourney(
@@ -1193,36 +1416,3 @@ private fun previewProfileJourney(): ProfileJourney {
         )
     )
 }
-
-private val KARNATAKA_DISTRICTS = listOf(
-    "Bagalkot",
-    "Ballari",
-    "Belagavi",
-    "Bengaluru Rural",
-    "Bengaluru Urban",
-    "Bidar",
-    "Chamarajanagar",
-    "Chikkaballapur",
-    "Chikkamagaluru",
-    "Chitradurga",
-    "Dakshina Kannada",
-    "Davanagere",
-    "Dharwad",
-    "Gadag",
-    "Hassan",
-    "Haveri",
-    "Kalaburagi",
-    "Kodagu",
-    "Kolar",
-    "Koppal",
-    "Mandya",
-    "Mysuru",
-    "Raichur",
-    "Ramanagara",
-    "Shivamogga",
-    "Tumakuru",
-    "Udupi",
-    "Uttara Kannada",
-    "Vijayapura",
-    "Yadgir"
-)

@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.ui.graphics.Color
 import com.itihaasa.nammakathey.data.local.StoryCatalogDataSource
 import com.itihaasa.nammakathey.data.repository.ProfileRepository
@@ -83,7 +83,7 @@ class ProfileViewModel @Inject constructor(
 
     private fun ProfileJourney.withLocalProgressOverlay(): ProfileJourney {
         val localBadges = localCompletedBadges()
-        if (localBadges.isEmpty()) return copy(explorerRank = badgesEarned.distinctBy { it.placeId }.size.toExplorerRank())
+        if (localBadges.isEmpty()) return copy(explorerRank = badgesEarned.rankBadgeCount().toExplorerRank())
 
         val existingBadgeIds = badgesEarned.map { it.placeId }.toSet()
         val newLocalBadgeCount = localBadges.count { it.placeId !in existingBadgeIds }
@@ -103,7 +103,7 @@ class ProfileViewModel @Inject constructor(
             placesExplored = (placesExplored + localPlaces).distinctBy { it.placeId },
             completedHeroIds = mergedCompletedHeroIds,
             quizStreak = quizStreak + newLocalBadgeCount,
-            explorerRank = mergedBadges.distinctBy { it.placeId }.size.toExplorerRank()
+            explorerRank = mergedBadges.rankBadgeCount().toExplorerRank()
         )
     }
 
@@ -191,7 +191,7 @@ class ProfileViewModel @Inject constructor(
             .mapValues { (district, stories) ->
                 val completed = stories.count { it.placeId in completedHeroIds }
                 DistrictProgressUiModel(
-                    district = district,
+                    district = stories.firstOrNull()?.district?.trim().orEmpty().ifBlank { district },
                     completed = completed,
                     total = stories.size
                 )
@@ -261,7 +261,7 @@ class ProfileViewModel @Inject constructor(
     }
 
     private fun rankReward(profile: ProfileJourney): RewardCardUiModel {
-        val badgeCount = profile.badgesEarned.distinctBy { it.placeId }.size
+        val badgeCount = profile.badgesEarned.rankBadgeCount()
         val currentRank = badgeCount.toExplorerRank()
         val nextRank = ExplorerRank.entries
             .sortedBy { it.badgesRequired }
@@ -272,7 +272,7 @@ class ProfileViewModel @Inject constructor(
             title = currentRank.title,
             subtitle = currentRank.description,
             accent = Color(0xFF2D5A3D),
-            icon = Icons.Filled.Star,
+            icon = Icons.Filled.MenuBook,
             statusText = nextRank?.let { "$badgeCount / ${it.badgesRequired} badges to ${it.title}" }
                 ?: "$badgeCount badges earned",
             active = true
@@ -290,6 +290,11 @@ private data class DistrictRewardProgress(
     val completionRatio: Float
         get() = if (total <= 0) 0f else completed.toFloat() / total.toFloat()
 }
+
+private fun List<Badge>.rankBadgeCount(): Int =
+    filterNot { it.badgeType == "district" }
+        .distinctBy { it.placeId }
+        .size
 
 private fun Long.formatDate(): String {
     return java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
