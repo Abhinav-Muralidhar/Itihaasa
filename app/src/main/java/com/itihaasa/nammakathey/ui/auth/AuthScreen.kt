@@ -111,7 +111,25 @@ fun AuthScreen(
             verticalArrangement = Arrangement.Center
         ) {
             ItihaasaAuthLogo()
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = "Sign in to begin your Karnataka story journey",
+                color = RoyalIndigo,
+                fontFamily = FontFamily.Serif,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                lineHeight = 27.sp
+            )
+            Text(
+                text = "Your district, badges, ranks, and story progress stay connected to your account.",
+                color = RoyalIndigo.copy(alpha = 0.72f),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+            Spacer(modifier = Modifier.height(18.dp))
 
             val loginCardShape = RoundedCornerShape(12.dp)
             Surface(

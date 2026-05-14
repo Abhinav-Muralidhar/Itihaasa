@@ -244,11 +244,6 @@ private fun ProfileContent(
 @Composable
 private fun RewardRewardsSection(cards: List<RewardCardUiModel>) {
     SectionCard(title = "Rewards") {
-        Text(
-            text = "These cards are driven by live progress. They reflect unlocked quiz badges, district crests, and rank movement.",
-            style = MaterialTheme.typography.bodySmall,
-            color = Charcoal.copy(alpha = 0.72f)
-        )
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -397,7 +392,7 @@ private fun ProfileTopBar(
 
 @Composable
 private fun ProfileHeader(profile: ProfileJourney, completedDistrictCount: Int) {
-    val badgeCount = profile.badgesEarned.distinctBy { it.placeId }.size
+    val badgeCount = profile.badgesEarned.rankBadgeCount()
     val storyCount = profile.completedStoryCount()
 
     Surface(
@@ -959,12 +954,8 @@ private fun Badge.badgeAccent(): Color {
     }
 }
 
-private fun ProfileJourney.completedStoryCount(): Int {
-    val completedIds = completedHeroIds.ifEmpty {
-        badgesEarned.filterNot { it.badgeType == "district" }.map { it.placeId }.toSet()
-    }
-    return completedIds.size
-}
+private fun ProfileJourney.completedStoryCount(): Int =
+    completedHeroIds.size.takeIf { it > 0 } ?: badgesEarned.rankBadgeCount()
 
 private fun List<Badge>.rankBadgeCount(): Int =
     filterNot { it.badgeType == "district" }

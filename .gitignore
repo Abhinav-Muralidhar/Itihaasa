@@ -10,6 +10,7 @@
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+/.idea/deviceManager.xml
 .DS_Store
 /build
 /captures
@@ -25,6 +26,7 @@ google-services.json
 secrets.properties
 
 # Local notes / reports (do not commit)
+aboutapp.md
 implementation.txt
 APP_AUDIT_REPORT.md
 

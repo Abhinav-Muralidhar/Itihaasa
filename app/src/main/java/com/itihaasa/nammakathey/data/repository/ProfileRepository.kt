@@ -132,6 +132,8 @@ class ProfileRepository @Inject constructor(
                     "displayName" to trimmedName.ifBlank { user.displayName.orEmpty() },
                     "photoUrl" to user.photoUrl?.toString().orEmpty(),
                     "homeDistrict" to homeDistrict,
+                    "activeDistrict" to homeDistrict,
+                    "unlockedDistricts" to FieldValue.arrayUnion(homeDistrict),
                     "preferredLang" to preferredLang,
                     "profileComplete" to true,
                     "updatedAt" to FieldValue.serverTimestamp()
@@ -143,6 +145,43 @@ class ProfileRepository @Inject constructor(
 
     fun signOut() {
         firebaseAuth.signOut()
+    }
+
+    suspend fun repairMissingHeroBadges(badges: List<Badge>) = withContext(Dispatchers.IO) {
+        val user = firebaseAuth.currentUser ?: return@withContext
+        if (user.isAnonymous || badges.isEmpty()) return@withContext
+
+        val userDocument = firestore.collection(USERS_COLLECTION).document(user.uid)
+        val snapshot = userDocument.get().await()
+        val existingBadgeIds = snapshot.getPlaceIdsFromMaps("badgesEarned").toSet()
+        val missingBadges = badges
+            .filterNot { it.badgeType == "district" || it.badgeType == "rank" }
+            .filterNot { it.placeId in existingBadgeIds }
+            .distinctBy { it.placeId }
+        if (missingBadges.isEmpty()) return@withContext
+
+        val now = System.currentTimeMillis()
+        val badgeMaps = missingBadges.map { badge ->
+            mapOf(
+                "placeId" to badge.placeId,
+                "placeName" to badge.placeName,
+                "district" to badge.district,
+                "earnedAt" to (badge.earnedAt.takeIf { it > 0L } ?: now),
+                "badgeType" to "hero"
+            )
+        }
+        val completedIds = missingBadges.map { it.placeId }
+        val nextRank = (existingBadgeIds + completedIds).size.toExplorerRank()
+
+        userDocument.set(
+            mapOf(
+                "completedHeroIds" to FieldValue.arrayUnion(*completedIds.toTypedArray()),
+                "badgesEarned" to FieldValue.arrayUnion(*badgeMaps.toTypedArray()),
+                "explorerRank" to nextRank.name,
+                "updatedAt" to FieldValue.serverTimestamp()
+            ),
+            SetOptions.merge()
+        ).await()
     }
 
     fun observeProfile(): Flow<ProfileJourney?> = callbackFlow {
@@ -173,7 +212,6 @@ class ProfileRepository @Inject constructor(
                 }
 
                 val heroBadges = snapshot.getListOfMaps("badgesEarned").mapNotNull { it.toBadge() }
-                val districtBadges = snapshot.getListOfMaps("districtBadges").mapNotNull { it.toBadge() }
 
                 trySend(
                     ProfileJourney(
@@ -195,7 +233,7 @@ class ProfileRepository @Inject constructor(
                             badgeCount = heroBadges.distinctBy { it.placeId }.size
                         ),
                         joinedAt = snapshot.get("joinedAt").toEpochMillis(),
-                        badgesEarned = (heroBadges + districtBadges).distinctBy { it.placeId },
+                        badgesEarned = heroBadges.distinctBy { it.placeId },
                         placesExplored = snapshot.getListOfMaps("placesExplored").mapNotNull { it.toExploredPlace() }
                     )
                 )

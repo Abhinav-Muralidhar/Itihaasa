@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
@@ -32,6 +33,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +70,8 @@ import com.itihaasa.nammakathey.ui.theme.RoyalIndigo
 @Composable
 fun StoryTabScreen(
     viewModel: StoryTabViewModel = hiltViewModel(),
+    requestedDistrict: String? = null,
+    progressRefreshSignal: Long = 0L,
     onStoryClick: (placeId: String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -82,6 +86,18 @@ fun StoryTabScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(requestedDistrict, uiState.isLoading) {
+        if (!uiState.isLoading) {
+            viewModel.openDistrictFromMap(requestedDistrict)
+        }
+    }
+
+    LaunchedEffect(progressRefreshSignal) {
+        if (progressRefreshSignal != 0L) {
+            viewModel.refreshProgress()
         }
     }
 
@@ -142,6 +158,27 @@ fun StoryTabScreen(
                     val progress = uiState.districtProgress[district] ?: DistrictStoryProgress()
                     val total = progress.total
                     val done = progress.completed
+
+                    uiState.lockedDistrictNotice?.let { notice ->
+                        item {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                color = HeritageOchre.copy(alpha = 0.14f),
+                                border = BorderStroke(1.dp, HeritageOchre.copy(alpha = 0.46f))
+                            ) {
+                                Text(
+                                    text = notice,
+                                    modifier = Modifier.padding(14.dp),
+                                    color = RoyalIndigo,
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+                    }
 
                     item {
                         Row(
@@ -326,6 +363,7 @@ fun DistrictMap(
             val isCompleted = district.name in completedDistricts
             val isHomeInProgress = district.name == homeDistrict && !isCompleted
 
+            key(district.name, isUnlocked, isCompleted, isCurrent, progress.completed, progress.total) {
             MarkerComposable(
                 state = MarkerState(LatLng(district.lat, district.lng)),
                 title = district.name,
@@ -358,6 +396,7 @@ fun DistrictMap(
                     compact = !isUnlocked && !isCompleted,
                     highlighted = isUnlocked || isCurrent || isCompleted
                 )
+            }
             }
         }
     }
@@ -464,7 +503,7 @@ fun StoryCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = when {
-                isCompleted -> RoyalIndigo.copy(alpha = 0.10f)
+                isCompleted -> ParchmentLight
                 isUnlocked -> ParchmentLight
                 else -> Parchment
             }
@@ -474,7 +513,10 @@ fun StoryCard(
         ),
         shape = RoundedCornerShape(8.dp),
         border = if (isUnlocked) {
-            BorderStroke(1.dp, RoyalIndigo.copy(alpha = if (isCompleted) 0.28f else 0.36f))
+            BorderStroke(
+                1.dp,
+                if (isCompleted) HeritageOchre.copy(alpha = 0.38f) else RoyalIndigo.copy(alpha = 0.36f)
+            )
         } else {
             BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.10f))
         }
@@ -506,7 +548,7 @@ fun StoryCard(
             }
 
             Box(
-                modifier = Modifier.width(64.dp),
+                modifier = Modifier.width(76.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
                 when {
@@ -531,23 +573,27 @@ fun StoryCard(
 
 @Composable
 private fun CompletedStorySeal(modifier: Modifier = Modifier) {
-    Surface(
+    Box(
         modifier = modifier
-            .width(72.dp)
-            .height(42.dp)
+            .size(68.dp)
             .graphicsLayer { rotationZ = -7f },
-        shape = RoundedCornerShape(999.dp),
-        color = ParchmentLight.copy(alpha = 0.72f),
-        border = BorderStroke(1.6.dp, RoyalIndigo.copy(alpha = 0.82f))
+        contentAlignment = Alignment.Center
     ) {
         Box(
             modifier = Modifier
+                .size(66.dp)
+                .border(
+                    width = 2.dp,
+                    color = RoyalIndigo.copy(alpha = 0.82f),
+                    shape = CircleShape
+                )
                 .padding(4.dp)
                 .border(
                     width = 1.dp,
-                    color = HeritageOchre.copy(alpha = 0.76f),
-                    shape = RoundedCornerShape(999.dp)
-                ),
+                    color = HeritageOchre.copy(alpha = 0.82f),
+                    shape = CircleShape
+                )
+                .padding(horizontal = 2.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -555,20 +601,11 @@ private fun CompletedStorySeal(modifier: Modifier = Modifier) {
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "CONQUERED",
-                    fontSize = 7.sp,
+                    text = "Done!",
+                    fontSize = 8.sp,
                     fontWeight = FontWeight.Black,
                     color = RoyalIndigo.copy(alpha = 0.92f),
                     letterSpacing = 0.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1
-                )
-                Text(
-                    text = "DONE",
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Serif,
-                    fontWeight = FontWeight.Black,
-                    color = HeritageOchre,
                     textAlign = TextAlign.Center,
                     maxLines = 1
                 )

@@ -1,8 +1,8 @@
 package com.itihaasa.nammakathey.ui.profile
 
-import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
 import com.itihaasa.nammakathey.data.local.DistrictDataSource
 import com.itihaasa.nammakathey.data.repository.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 class ProfileSetupViewModel @Inject constructor(
     districtDataSource: DistrictDataSource,
     private val profileRepository: ProfileRepository,
-    private val sharedPreferences: SharedPreferences
+    firebaseAuth: FirebaseAuth
 ) : ViewModel() {
     private val districtNames = districtDataSource.districts
         .map { it.name }
@@ -27,6 +27,7 @@ class ProfileSetupViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(
         ProfileSetupUiState(
+            name = firebaseAuth.currentUser?.displayName.orEmpty(),
             districts = districtNames,
             homeDistrict = districtNames.firstOrNull().orEmpty()
         )
@@ -67,10 +68,6 @@ class ProfileSetupViewModel @Inject constructor(
                     homeDistrict = homeDistrict,
                     preferredLang = state.preferredLang
                 )
-                sharedPreferences.edit()
-                    .putString(KEY_HOME_DISTRICT, homeDistrict)
-                    .putBoolean(KEY_HOME_DISTRICT_SET, true)
-                    .apply()
             }.onSuccess {
                 _uiState.update { it.copy(isSaving = false) }
                 onComplete()
@@ -85,10 +82,6 @@ class ProfileSetupViewModel @Inject constructor(
         }
     }
 
-    private companion object {
-        const val KEY_HOME_DISTRICT = "home_district"
-        const val KEY_HOME_DISTRICT_SET = "home_district_set"
-    }
 }
 
 data class ProfileSetupUiState(

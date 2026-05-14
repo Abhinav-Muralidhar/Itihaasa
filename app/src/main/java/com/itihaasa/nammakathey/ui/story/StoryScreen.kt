@@ -1,6 +1,5 @@
 package com.itihaasa.nammakathey.ui.story
 
-import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
@@ -121,8 +120,7 @@ class StoryScreenViewModel @Inject constructor(
     private val storyCatalogDataSource: StoryCatalogDataSource,
     private val districtDataSource: DistrictDataSource,
     private val storyRepository: StoryRepository,
-    private val storyProgressRepository: StoryProgressRepository,
-    private val sharedPreferences: SharedPreferences
+    private val storyProgressRepository: StoryProgressRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StoryScreenUiState())
@@ -175,15 +173,25 @@ class StoryScreenViewModel @Inject constructor(
 
     private fun refreshProgressState() {
         viewModelScope.launch(Dispatchers.IO) {
-            val homeDistrict = sharedPreferences.getString(KEY_HOME_DISTRICT, null)
-            val progressState = storyProgressRepository.getProgressState(homeDistrict)
-            _uiState.update {
-                it.copy(
-                    districts = districtDataSource.districts,
-                    activeDistrict = progressState.activeDistrict,
-                    unlockedDistricts = progressState.unlockedDistricts,
-                    completedHeroIds = progressState.completedHeroIds
-                )
+            runCatching {
+                storyProgressRepository.getProgressState(localHomeDistrict = null)
+            }.onSuccess { progressState ->
+                _uiState.update {
+                    it.copy(
+                        districts = districtDataSource.districts,
+                        activeDistrict = progressState.activeDistrict,
+                        unlockedDistricts = progressState.unlockedDistricts,
+                        completedHeroIds = progressState.completedHeroIds,
+                        errorMessage = null
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        districts = districtDataSource.districts,
+                        errorMessage = throwable.message ?: "Could not load your saved progress."
+                    )
+                }
             }
         }
     }
@@ -236,7 +244,7 @@ class StoryScreenViewModel @Inject constructor(
         _uiState.update { it.copy(quizAnswers = newAnswers) }
     }
 
-    fun onQuizComplete() {
+    fun onQuizComplete(onSaved: () -> Unit) {
         val story = _uiState.value.story ?: return
         val answers = _uiState.value.quizAnswers
         val correct = story.quiz.indices.count { i ->
@@ -245,40 +253,68 @@ class StoryScreenViewModel @Inject constructor(
         val passed = story.quiz.isNotEmpty() &&
             answers.size == story.quiz.size &&
             correct == story.quiz.size
-        _uiState.update {
-            it.copy(badgeEarned = passed, rankUpEvent = null)
+        if (!passed) {
+            _uiState.update { it.copy(badgeEarned = false, rankUpEvent = null) }
+            onSaved()
+            return
         }
-        if (passed) {
-            _uiState.value.hero?.let { hero ->
-                val previousCompleted = storyProgressRepository.getCompletedHeroIds()
-                val wasNewCompletion = hero.placeId !in previousCompleted
-                val oldRank = previousCompleted.size.toExplorerRank()
-                val updatedCompleted = storyProgressRepository.markHeroCompletedLocally(hero)
-                val newRank = updatedCompleted.size.toExplorerRank()
-                val districtIsNowComplete = storyCatalogDataSource
-                    .getStoriesByDistrict(hero.district)
-                    .all { it.placeId in updatedCompleted }
-                _uiState.update { state ->
-                    state.copy(
-                        completedHeroIds = updatedCompleted,
-                        rankUpEvent = if (
-                            wasNewCompletion &&
-                            newRank.badgesRequired > oldRank.badgesRequired
-                        ) {
-                            RankUpEvent(
-                                oldRank = oldRank,
-                                newRank = newRank,
-                                completedStoryCount = updatedCompleted.size
-                            )
-                        } else {
-                            null
-                        }
-                    )
-                }
-                viewModelScope.launch(Dispatchers.IO) {
+
+        _uiState.value.hero?.let { hero ->
+            val previousCompleted = _uiState.value.completedHeroIds
+            val wasNewCompletion = hero.placeId !in previousCompleted
+            val oldRank = previousCompleted.size.toExplorerRank()
+            val updatedCompleted = previousCompleted + hero.placeId
+            val newRank = updatedCompleted.size.toExplorerRank()
+            val districtIsNowComplete = storyCatalogDataSource
+                .getStoriesByDistrict(hero.district)
+                .all { it.placeId in updatedCompleted }
+
+            _uiState.update {
+                it.copy(
+                    errorMessage = null,
+                    badgeEarned = false,
+                    rankUpEvent = null,
+                    isSavingCompletion = true
+                )
+            }
+            viewModelScope.launch(Dispatchers.IO) {
+                runCatching {
                     storyProgressRepository.markHeroCompleted(hero)
                     if (districtIsNowComplete) {
                         storyProgressRepository.markDistrictCompleted(hero.district)
+                    }
+                }.onSuccess {
+                    _uiState.update { state ->
+                        state.copy(
+                            badgeEarned = true,
+                            completedHeroIds = updatedCompleted,
+                            rankUpEvent = if (
+                                wasNewCompletion &&
+                                newRank.badgesRequired > oldRank.badgesRequired
+                            ) {
+                                RankUpEvent(
+                                    oldRank = oldRank,
+                                    newRank = newRank,
+                                    completedStoryCount = updatedCompleted.size
+                                )
+                            } else {
+                                null
+                            },
+                            errorMessage = null,
+                            isSavingCompletion = false
+                        )
+                    }
+                    withContext(Dispatchers.Main) {
+                        onSaved()
+                    }
+                }.onFailure { throwable ->
+                    _uiState.update {
+                        it.copy(
+                            badgeEarned = false,
+                            rankUpEvent = null,
+                            isSavingCompletion = false,
+                            errorMessage = throwable.message ?: "Could not save your badge. Check your connection and try again."
+                        )
                     }
                 }
             }
@@ -312,16 +348,25 @@ class StoryScreenViewModel @Inject constructor(
             runCatching {
                 storyProgressRepository.unlockDistrict(districtName)
                 storyProgressRepository.setActiveDistrict(districtName)
-            }
-            _uiState.update { state ->
-                state.copy(
-                    isUnlocking = false,
-                    unlockedDistricts = state.unlockedDistricts + districtName,
-                    activeDistrict = districtName
-                )
-            }
-            withContext(Dispatchers.Main) {
-                onComplete()
+            }.onSuccess {
+                _uiState.update { state ->
+                    state.copy(
+                        isUnlocking = false,
+                        unlockedDistricts = state.unlockedDistricts + districtName,
+                        activeDistrict = districtName,
+                        errorMessage = null
+                    )
+                }
+                withContext(Dispatchers.Main) {
+                    onComplete()
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isUnlocking = false,
+                        errorMessage = throwable.message ?: "Could not unlock this district. Check your connection and try again."
+                    )
+                }
             }
         }
     }
@@ -352,6 +397,7 @@ data class StoryScreenUiState(
     val rankUpEvent: RankUpEvent? = null,
     val activeDistrict: String? = null,
     val isUnlocking: Boolean = false,
+    val isSavingCompletion: Boolean = false,
     val errorMessage: String? = null
 )
 
@@ -360,8 +406,6 @@ data class RankUpEvent(
     val newRank: ExplorerRank,
     val completedStoryCount: Int
 )
-
-private const val KEY_HOME_DISTRICT = "home_district"
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -465,12 +509,15 @@ fun StoryScreen(
                             QuizPage(
                                 quiz = story.quiz,
                                 quizAnswers = uiState.quizAnswers,
+                                isCheckingAnswers = uiState.isSavingCompletion,
+                                completionSaveFailed = uiState.errorMessage?.contains("save your badge") == true,
                                 onAnswerSelected = { q, a ->
                                     viewModel.onAnswerSelected(q, a)
                                 },
                                 onComplete = {
-                                    viewModel.onQuizComplete()
-                                    goToPage(page + 1)
+                                    viewModel.onQuizComplete {
+                                        goToPage(page + 1)
+                                    }
                                 }
                             )
                         page == totalSections + 3 ->
@@ -500,6 +547,24 @@ fun StoryScreen(
                                 onStart = { goToPage(1) },
                                 onNearby = { onOpenNearMe(currentHero.placeId) }
                             )
+                    }
+                }
+                uiState.errorMessage?.let { message ->
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        color = ParchmentLight,
+                        border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.22f))
+                    ) {
+                        Text(
+                            text = message,
+                            color = RoyalIndigo,
+                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(12.dp)
+                        )
                     }
                 }
             }
@@ -990,6 +1055,8 @@ fun OptionButton(
 fun QuizPage(
     quiz: List<QuizQuestion>,
     quizAnswers: Map<Int, String>,
+    isCheckingAnswers: Boolean,
+    completionSaveFailed: Boolean,
     onAnswerSelected: (Int, String) -> Unit,
     onComplete: () -> Unit
 ) {
@@ -1007,13 +1074,17 @@ fun QuizPage(
 
     var revealingIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var revealingAnswer by rememberSaveable { mutableStateOf<String?>(null) }
+    var completionSubmitted by rememberSaveable { mutableStateOf(false) }
     val isRevealing = revealingIndex != null
 
     val currentIndex = (revealingIndex ?: quizAnswers.size).coerceAtMost(quiz.size - 1)
     val isComplete = quizAnswers.size == quiz.size
 
-    LaunchedEffect(isComplete) {
-        if (isComplete) {
+    LaunchedEffect(isComplete, isCheckingAnswers) {
+        if (!isComplete) {
+            completionSubmitted = false
+        } else if (!isCheckingAnswers && !completionSubmitted) {
+            completionSubmitted = true
             delay(1200)
             onComplete()
         }
@@ -1117,7 +1188,7 @@ fun QuizPage(
 
             Surface(
                 onClick = {
-                    if (!isAnswered && !isRevealing) {
+                    if (!isAnswered && !isRevealing && !isCheckingAnswers) {
                         revealingIndex = currentIndex
                         revealingAnswer = option
                     }
@@ -1161,13 +1232,30 @@ fun QuizPage(
             }
         }
 
-        if (isComplete) {
-            Text(
-                text = "Checking your answers...",
-                modifier = Modifier.fillMaxWidth(),
-                color = HeritageOchre,
-                textAlign = TextAlign.Center
-            )
+        if (isComplete || isCheckingAnswers) {
+            if (completionSaveFailed && !isCheckingAnswers) {
+                Button(
+                    onClick = {
+                        completionSubmitted = false
+                        onComplete()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = RoyalIndigo,
+                        contentColor = ParchmentLight
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Try saving badge again")
+                }
+            } else {
+                Text(
+                    text = "Checking your answers...",
+                    modifier = Modifier.fillMaxWidth(),
+                    color = HeritageOchre,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }
@@ -1439,7 +1527,7 @@ fun BadgePage(
                     Text(
                         text = when (remainingCount) {
                             0 -> if (selectedDistrict != null) "Unlock ${selectedDistrict.orEmpty()} ->" else "Back to map"
-                            else -> "Continue to next story ->"
+                            else -> "Continue to next story "
                         }
                     )
                 }
@@ -1808,13 +1896,6 @@ fun DidYouKnowPage(
             fontSize = 11.sp,
             color = HeritageOchre,
             letterSpacing = 3.sp
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Surprising facts about this place",
-            fontSize = 18.sp,
-            fontFamily = FontFamily.Serif,
-            color = RoyalIndigo
         )
 
         Spacer(modifier = Modifier.height(20.dp))

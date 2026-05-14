@@ -1,6 +1,5 @@
 package com.itihaasa.nammakathey.ui.story
 
-import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itihaasa.nammakathey.data.local.DistrictDataSource
@@ -23,30 +22,17 @@ class StoryTabViewModel @Inject constructor(
     private val districtDataSource: DistrictDataSource,
     private val storyCatalogDataSource: StoryCatalogDataSource,
     private val offlineStoryDataSource: OfflineStoryDataSource,
-    private val storyProgressRepository: StoryProgressRepository,
-    private val sharedPreferences: SharedPreferences
+    private val storyProgressRepository: StoryProgressRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StoryTabUiState())
     val uiState: StateFlow<StoryTabUiState> = _uiState.asStateFlow()
     @Volatile
     private var isRefreshingProgress = false
-    private val progressListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (
-            !isRefreshingProgress &&
-            (
-                key == KEY_HOME_DISTRICT ||
-                key == KEY_ACTIVE_DISTRICT ||
-                key == KEY_COMPLETED_HERO_IDS ||
-                key == KEY_UNLOCKED_DISTRICTS
-            )
-        ) {
-            loadData()
-        }
-    }
+    @Volatile
+    private var refreshQueued = false
 
     init {
-        sharedPreferences.registerOnSharedPreferenceChangeListener(progressListener)
         loadData()
     }
 
@@ -55,12 +41,14 @@ class StoryTabViewModel @Inject constructor(
     }
 
     private fun loadData() {
-        if (isRefreshingProgress) return
+        if (isRefreshingProgress) {
+            refreshQueued = true
+            return
+        }
         isRefreshingProgress = true
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val localHomeDistrict = sharedPreferences.getString("home_district", null)
-                val progressState = storyProgressRepository.getProgressState(localHomeDistrict)
+                val progressState = storyProgressRepository.getProgressState(localHomeDistrict = null)
                 val homeDistrict = progressState.homeDistrict
                 val activeDistrict = progressState.activeDistrict
 
@@ -100,11 +88,23 @@ class StoryTabViewModel @Inject constructor(
                         heroesInCurrentDistrict = heroes,
                         availableStoryIds = availableStoryIds,
                         completedHeroIds = completedHeroIds,
+                        lockedDistrictNotice = null,
                         isLoading = false
+                    )
+                }
+            } catch (throwable: Throwable) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        lockedDistrictNotice = throwable.message ?: "Could not load your saved story progress."
                     )
                 }
             } finally {
                 isRefreshingProgress = false
+                if (refreshQueued) {
+                    refreshQueued = false
+                    loadData()
+                }
             }
         }
     }
@@ -112,28 +112,75 @@ class StoryTabViewModel @Inject constructor(
     fun onDistrictSelected(districtName: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val heroes = storyCatalogDataSource.getStoriesByDistrict(districtName)
-            storyProgressRepository.setActiveDistrict(districtName)
-            _uiState.update {
-                it.copy(
-                    currentDistrict = districtName,
-                    heroesInCurrentDistrict = heroes
-                )
+            runCatching {
+                storyProgressRepository.setActiveDistrict(districtName)
+            }.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        currentDistrict = districtName,
+                        heroesInCurrentDistrict = heroes,
+                        lockedDistrictNotice = null
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        lockedDistrictNotice = throwable.message ?: "Could not switch districts. Check your connection and try again."
+                    )
+                }
             }
         }
     }
 
-    fun onDistrictUnlocked(districtName: String) {
+    fun openDistrictFromMap(districtName: String?) {
+        val requestedDistrict = districtName?.takeIf { it.isNotBlank() } ?: return
+        val state = _uiState.value
+        if (state.isLoading) return
+        if (requestedDistrict in state.unlockedDistricts) {
+            onDistrictSelected(requestedDistrict)
+            return
+        }
+
+        val fallbackDistrict = state.currentDistrict ?: state.homeDistrict
+        val fallbackHeroes = fallbackDistrict
+            ?.let { storyCatalogDataSource.getStoriesByDistrict(it) }
+            .orEmpty()
         _uiState.update {
             it.copy(
-                unlockedDistricts = it.unlockedDistricts + districtName,
-                currentDistrict = districtName
+                currentDistrict = fallbackDistrict,
+                heroesInCurrentDistrict = fallbackHeroes,
+                lockedDistrictNotice = if (fallbackDistrict.isNullOrBlank()) {
+                    "$requestedDistrict is locked. Choose your home district to begin story mode."
+                } else {
+                    "$requestedDistrict is locked. Complete every story in $fallbackDistrict to unlock more districts."
+                }
             )
         }
+    }
+
+    fun onDistrictUnlocked(districtName: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            storyProgressRepository.unlockDistrict(districtName)
-            storyProgressRepository.setActiveDistrict(districtName)
+            runCatching {
+                storyProgressRepository.unlockDistrict(districtName)
+                storyProgressRepository.setActiveDistrict(districtName)
+            }.onSuccess {
+                val heroes = storyCatalogDataSource.getStoriesByDistrict(districtName)
+                _uiState.update {
+                    it.copy(
+                        unlockedDistricts = it.unlockedDistricts + districtName,
+                        currentDistrict = districtName,
+                        heroesInCurrentDistrict = heroes,
+                        lockedDistrictNotice = null
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        lockedDistrictNotice = throwable.message ?: "Could not unlock this district. Check your connection and try again."
+                    )
+                }
+            }
         }
-        onDistrictSelected(districtName)
     }
 
     fun isHeroUnlocked(hero: StoryCatalogEntry): Boolean {
@@ -142,7 +189,6 @@ class StoryTabViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        sharedPreferences.unregisterOnSharedPreferenceChangeListener(progressListener)
         super.onCleared()
     }
 }
@@ -157,6 +203,7 @@ data class StoryTabUiState(
     val heroesInCurrentDistrict: List<StoryCatalogEntry> = emptyList(),
     val availableStoryIds: Set<String> = emptySet(),
     val completedHeroIds: Set<String> = emptySet(),
+    val lockedDistrictNotice: String? = null,
     val isLoading: Boolean = true
 )
 
@@ -165,8 +212,3 @@ data class DistrictStoryProgress(
     val available: Int = 0,
     val total: Int = 0
 )
-
-private const val KEY_HOME_DISTRICT = "home_district"
-private const val KEY_ACTIVE_DISTRICT = "active_district"
-private const val KEY_COMPLETED_HERO_IDS = "completed_hero_ids"
-private const val KEY_UNLOCKED_DISTRICTS = "unlocked_districts"

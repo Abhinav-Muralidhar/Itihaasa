@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -44,6 +45,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -58,8 +62,7 @@ import com.google.maps.android.compose.rememberCameraPositionState
 import com.itihaasa.nammakathey.model.Place
 import com.itihaasa.nammakathey.model.PlaceType
 import com.itihaasa.nammakathey.utils.pinColorForType
-import com.itihaasa.nammakathey.ui.onboarding.HomeDistrictSheet
-import com.itihaasa.nammakathey.ui.story.StoryBottomSheet
+import com.itihaasa.nammakathey.ui.story.PlaceDistrictSheet
 import com.itihaasa.nammakathey.ui.theme.HeritageOchre
 import com.itihaasa.nammakathey.ui.theme.ParchmentLight
 import com.itihaasa.nammakathey.ui.theme.RoyalIndigo
@@ -73,19 +76,27 @@ private val KarnatakaBounds = LatLngBounds(
 @Composable
 fun MapScreen(
     viewModel: MapViewModel = hiltViewModel(),
-    onPlaceClick: (String) -> Unit = {}
+    onDistrictStoriesClick: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(KarnatakaCenter, 6f)
     }
 
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshUserProgress()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     LaunchedEffect(uiState.cameraTarget) {
         uiState.cameraTarget?.let { target ->
-            cameraPositionState.animate(
-                CameraUpdateFactory.newLatLngZoom(target, 12f),
-                durationMs = 800
-            )
+            cameraPositionState.move(CameraUpdateFactory.newLatLng(target))
             viewModel.onCameraTargetConsumed()
         }
     }
@@ -153,9 +164,27 @@ fun MapScreen(
                 activeFilters = uiState.activeFilters,
                 onFilterToggled = viewModel::onFilterToggled
             )
+            uiState.errorMessage?.let { message ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = ParchmentLight,
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.20f))
+                ) {
+                    Text(
+                        text = message,
+                        color = RoyalIndigo,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
         }
 
-        uiState.todayInHistory?.let { place ->
+        uiState.todayInHistory
+            ?.takeIf { place -> place.district in uiState.unlockedDistricts }
+            ?.let { place ->
             TodayInHistoryBanner(
                 place = place,
                 onTap = { viewModel.onPlaceSelected(place) },
@@ -172,23 +201,18 @@ fun MapScreen(
             )
         }
 
-        if (uiState.showHomeDistrictSheet) {
-            HomeDistrictSheet(
-                onDistrictSelected = viewModel::setHomeDistrict,
-                onSkip = viewModel::skipHomeDistrict
-            )
-        }
-
         uiState.selectedPlace?.let { selectedPlace ->
             val isDistrictUnlocked = selectedPlace.district in uiState.unlockedDistricts
-            StoryBottomSheet(
+            PlaceDistrictSheet(
                 place = selectedPlace,
-                story = uiState.cachedStory,
                 isDistrictUnlocked = isDistrictUnlocked,
                 homeDistrict = uiState.homeDistrict,
-                onReadStory = {
-                    onPlaceClick(selectedPlace.id)
-                    viewModel.onPlaceDismissed()
+                activeDistrict = uiState.activeDistrict,
+                onExploreDistrict = {
+                    if (isDistrictUnlocked) {
+                        onDistrictStoriesClick(selectedPlace.district)
+                        viewModel.onPlaceDismissed()
+                    }
                 },
                 onDismiss = { viewModel.onPlaceDismissed() }
             )

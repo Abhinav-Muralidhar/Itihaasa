@@ -2,20 +2,16 @@ package com.itihaasa.nammakathey.ui.profile
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -24,6 +20,10 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,9 +34,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -49,6 +51,7 @@ import com.itihaasa.nammakathey.ui.theme.Parchment
 import com.itihaasa.nammakathey.ui.theme.ParchmentLight
 import com.itihaasa.nammakathey.ui.theme.RoyalIndigo
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileSetupScreen(
     onBackClick: () -> Unit = {},
@@ -62,8 +65,8 @@ fun ProfileSetupScreen(
             .fillMaxSize()
             .background(Parchment)
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -91,13 +94,13 @@ fun ProfileSetupScreen(
             border = BorderStroke(1.dp, RoyalIndigo)
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Begin from your home district",
+                    text = "Set your starting district",
                     fontFamily = FontFamily.Serif,
-                    fontSize = 28.sp,
+                    fontSize = 25.sp,
                     fontWeight = FontWeight.Bold,
                     color = ParchmentLight
                 )
@@ -109,13 +112,7 @@ fun ProfileSetupScreen(
             }
         }
 
-        SetupPanel {
-            Text(
-                text = "Your Name",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = RoyalIndigo
-            )
+        SetupPanel(title = "Your Name") {
             OutlinedTextField(
                 value = uiState.name,
                 onValueChange = viewModel::onNameChanged,
@@ -126,50 +123,74 @@ fun ProfileSetupScreen(
             )
         }
 
-        SetupPanel {
-            Text(
-                text = "Home District",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = RoyalIndigo
-            )
-            Column(
-                modifier = Modifier
-                    .heightIn(max = 360.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+        SetupPanel(title = "Home District") {
+            var expanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded }
             ) {
-                uiState.districts.forEach { district ->
-                    DistrictChoice(
-                        district = district,
-                        selected = district == uiState.homeDistrict,
-                        onClick = { viewModel.onDistrictSelected(district) }
-                    )
+                OutlinedTextField(
+                    value = uiState.homeDistrict,
+                    onValueChange = {},
+                    readOnly = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(),
+                    label = { Text("Choose district") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    colors = setupFieldColors()
+                )
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    uiState.districts.forEach { district ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = district,
+                                    color = Charcoal,
+                                    fontWeight = if (district == uiState.homeDistrict) {
+                                        FontWeight.Bold
+                                    } else {
+                                        FontWeight.Medium
+                                    }
+                                )
+                            },
+                            onClick = {
+                                viewModel.onDistrictSelected(district)
+                                expanded = false
+                            },
+                            trailingIcon = if (district == uiState.homeDistrict) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Filled.Check,
+                                        contentDescription = null,
+                                        tint = HeritageOchre,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            } else {
+                                null
+                            }
+                        )
+                    }
                 }
             }
         }
 
-        SetupPanel {
-            Text(
-                text = "Story Language",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = RoyalIndigo
+        SetupPanel(title = "Story Language") {
+            CompactLanguageRow(
+                selected = uiState.preferredLang,
+                onLanguageSelected = viewModel::onLanguageSelected
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                LanguageChoice(
-                    label = "English",
-                    selected = uiState.preferredLang == "en",
-                    onClick = { viewModel.onLanguageSelected("en") },
-                    modifier = Modifier.weight(1f)
-                )
-                LanguageChoice(
-                    label = "Kannada",
-                    selected = uiState.preferredLang == "kn",
-                    onClick = { viewModel.onLanguageSelected("kn") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
+        }
+
+        Surface(
+            color = ParchmentLight.copy(alpha = 0.72f),
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.12f))
+        ) {
         }
 
         uiState.errorMessage?.let { message ->
@@ -206,65 +227,50 @@ fun ProfileSetupScreen(
 }
 
 @Composable
-private fun SetupPanel(content: @Composable ColumnScope.() -> Unit) {
+private fun SetupPanel(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
     Surface(
         color = ParchmentLight,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.24f))
+        border = BorderStroke(1.dp, RoyalIndigo.copy(alpha = 0.20f))
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            content = content
-        )
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = RoyalIndigo
+            )
+            content()
+        }
     }
 }
 
 @Composable
-private fun DistrictChoice(
-    district: String,
-    selected: Boolean,
-    onClick: () -> Unit
+private fun CompactLanguageRow(
+    selected: String,
+    onLanguageSelected: (String) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) RoyalIndigo.copy(alpha = 0.08f) else Parchment)
-            .border(
-                width = 1.dp,
-                color = if (selected) RoyalIndigo else RoyalIndigo.copy(alpha = 0.18f),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = district,
-            color = Charcoal,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        LanguageChoice(
+            label = "English",
+            selected = selected == "en",
+            onClick = { onLanguageSelected("en") },
+            modifier = Modifier.weight(1f)
         )
-        if (selected) {
-            Box(
-                modifier = Modifier
-                    .size(22.dp)
-                    .clip(CircleShape)
-                    .background(HeritageOchre),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = null,
-                    tint = ParchmentLight,
-                    modifier = Modifier.size(14.dp)
-                )
-            }
-        }
+        LanguageChoice(
+            label = "Kannada",
+            selected = selected == "kn",
+            onClick = { onLanguageSelected("kn") },
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
